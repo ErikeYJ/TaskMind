@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { AlertTriangle, Loader2, Sparkles } from 'lucide-react'
 import { Header } from './components/layout/Header'
 import { Sidebar } from './components/layout/Sidebar'
+import { ProjectDialog } from './components/projects/ProjectDialog'
 import { AddTaskDialog } from './components/tasks/AddTaskDialog'
 import { TaskDetailDrawer } from './components/tasks/TaskDetailDrawer'
 import { TaskList } from './components/tasks/TaskList'
@@ -34,10 +35,17 @@ export default function App(): React.JSX.Element {
   useEffect(() => {
     void loadSettings()
     void useTaskStore.getState().load()
+    void useTaskStore.getState().loadProjects()
 
     const unsubscribers = [
       window.taskmind.events.onTasksChanged(() => {
         void useTaskStore.getState().refreshAfterChange()
+      }),
+      window.taskmind.events.onProjectsChanged(() => {
+        void useTaskStore
+          .getState()
+          .loadProjects()
+          .then(() => useTaskStore.getState().refreshAfterChange())
       }),
       window.taskmind.events.onSettingsChanged((updated) => {
         useSettingsStore.getState().setSettings(updated)
@@ -182,6 +190,7 @@ export default function App(): React.JSX.Element {
       </div>
 
       <AddTaskDialog />
+      <ProjectDialog />
       <TaskDetailDrawer />
       <SettingsDialog />
       <OnboardingDialog />

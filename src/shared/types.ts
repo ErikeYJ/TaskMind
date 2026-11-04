@@ -19,12 +19,33 @@ export interface ScreenshotMeta {
   thumbUrl: string
 }
 
+export interface Project {
+  id: string
+  name: string
+  color: string
+  openTaskCount: number
+  totalTaskCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateProjectInput {
+  name: string
+  color: string
+}
+
+export interface UpdateProjectInput {
+  name?: string
+  color?: string
+}
+
 export interface Task {
   id: string
   title: string
   content: string
   client: string | null
   notes: string
+  projectId: string | null
   dueDate: string | null
   dueTime: string | null
   status: TaskStatus
@@ -48,6 +69,7 @@ export interface CreateTaskInput {
   content?: string
   client?: string | null
   notes?: string
+  projectId?: string | null
   dueDate?: string | null
   dueTime?: string | null
   screenshots?: ScreenshotInput[]
@@ -58,6 +80,7 @@ export interface UpdateTaskInput {
   content?: string
   client?: string | null
   notes?: string
+  projectId?: string | null
   dueDate?: string | null
   dueTime?: string | null
 }

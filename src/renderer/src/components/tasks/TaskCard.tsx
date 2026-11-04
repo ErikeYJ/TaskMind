@@ -10,9 +10,11 @@ import {
 import type { Task, TaskAction, TaskStatus } from '@shared/types'
 import { formatShortDateTime } from '@shared/date'
 import { DueBadge, StatusBadge } from '../ui/Badges'
+import { ProjectBadge } from '../projects/ProjectBadge'
 import { Button } from '../ui/Button'
 import { cn } from '../../lib/utils'
 import { runTaskAction } from '../../lib/taskActions'
+import { useTaskStore } from '../../stores/taskStore'
 
 const statusAccent: Record<TaskStatus, string> = {
   todo: 'bg-slate-300 dark:bg-slate-600',
@@ -60,6 +62,10 @@ interface TaskCardProps {
 
 export function TaskCard({ task, onOpen }: TaskCardProps): React.JSX.Element {
   const [busyAction, setBusyAction] = useState<TaskAction | null>(null)
+  const projects = useTaskStore((state) => state.projects)
+  const project = task.projectId
+    ? projects.find((item) => item.id === task.projectId)
+    : undefined
   const actions = actionsForStatus(task.status)
 
   const run = async (action: TaskAction): Promise<void> => {
@@ -98,6 +104,7 @@ export function TaskCard({ task, onOpen }: TaskCardProps): React.JSX.Element {
             >
               {task.title}
             </h3>
+            {project ? <ProjectBadge project={project} /> : null}
             {task.client ? (
               <span className="inline-flex max-w-[220px] items-center gap-1 rounded-full bg-[var(--surface-soft)] px-2 py-0.5 text-[11px] text-[var(--muted)]">
                 <UserRound className="h-3 w-3 shrink-0" />

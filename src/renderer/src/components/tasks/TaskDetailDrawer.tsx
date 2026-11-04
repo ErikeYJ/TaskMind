@@ -36,6 +36,7 @@ import { Button } from '../ui/Button'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { DueBadge, StatusBadge } from '../ui/Badges'
 import { ScreenshotLightbox } from './ScreenshotLightbox'
+import { ProjectBadge } from '../projects/ProjectBadge'
 
 interface ActionSpec {
   action: TaskAction
@@ -90,6 +91,7 @@ export function TaskDetailDrawer(): React.JSX.Element {
   const open = useTaskStore((state) => state.detailOpen)
   const task = useTaskStore((state) => state.detailTask)
   const closeDetail = useTaskStore((state) => state.closeDetail)
+  const projects = useTaskStore((state) => state.projects)
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<TaskFormValue>(EMPTY_TASK_FORM)
   const [formError, setFormError] = useState<string | null>(null)
@@ -120,6 +122,10 @@ export function TaskDetailDrawer(): React.JSX.Element {
 
   if (!task) return <></>
 
+  const project = task.projectId
+    ? projects.find((item) => item.id === task.projectId)
+    : undefined
+
   const startEditing = (): void => {
     setForm(taskToForm(task))
     setFormError(null)
@@ -141,6 +147,7 @@ export function TaskDetailDrawer(): React.JSX.Element {
     setFormError(null)
     const updated = await updateTask(task.id, {
       title: form.title.trim(),
+      projectId: form.projectId || null,
       client: form.client.trim() || null,
       content: form.content,
       notes: form.notes,
@@ -225,6 +232,7 @@ export function TaskDetailDrawer(): React.JSX.Element {
                   <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge status={task.status} />
                     <DueBadge task={task} />
+                    {project ? <ProjectBadge project={project} /> : null}
                     {task.client ? (
                       <span className="inline-flex max-w-[260px] items-center gap-1 rounded-full bg-[var(--surface-soft)] px-2 py-0.5 text-[11px] text-[var(--muted)]">
                         <UserRound className="h-3 w-3 shrink-0" />
@@ -303,6 +311,7 @@ export function TaskDetailDrawer(): React.JSX.Element {
               ) : (
                 <div className="space-y-6">
                   <div className="grid grid-cols-2 gap-x-4 gap-y-4 rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] p-4">
+                    <Field label="项目">{project ? <ProjectBadge project={project} /> : '—'}</Field>
                     <Field label="客户 / 来源">{task.client || '—'}</Field>
                     <Field label="截止">
                       <DueBadge task={task} showIcon={false} />

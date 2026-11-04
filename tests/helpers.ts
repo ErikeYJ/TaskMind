@@ -12,6 +12,7 @@ export function makeTask(partial: Partial<Task> = {}): Task {
     content: '',
     client: null,
     notes: '',
+    projectId: null,
     dueDate: null,
     dueTime: null,
     status,

@@ -3,11 +3,13 @@ import { addDays, getDay, startOfDay } from 'date-fns'
 import { Sparkles, X } from 'lucide-react'
 import { parseNaturalDate, toDateString } from '@shared/date'
 import type { Task } from '@shared/types'
+import { useTaskStore } from '../../stores/taskStore'
 import { Button } from '../ui/Button'
 import { cn } from '../../lib/utils'
 
 export interface TaskFormValue {
   title: string
+  projectId: string
   client: string
   content: string
   notes: string
@@ -17,6 +19,7 @@ export interface TaskFormValue {
 
 export const EMPTY_TASK_FORM: TaskFormValue = {
   title: '',
+  projectId: '',
   client: '',
   content: '',
   notes: '',
@@ -27,6 +30,7 @@ export const EMPTY_TASK_FORM: TaskFormValue = {
 export function taskToForm(task: Task): TaskFormValue {
   return {
     title: task.title,
+    projectId: task.projectId ?? '',
     client: task.client ?? '',
     content: task.content,
     notes: task.notes,
@@ -69,6 +73,8 @@ export function TaskFields({
 }: TaskFieldsProps): React.JSX.Element {
   const [natural, setNatural] = useState('')
   const [hint, setHint] = useState<string | null>(null)
+  const projects = useTaskStore((state) => state.projects)
+  const selectedProject = projects.find((project) => project.id === value.projectId)
   const today = toDateString(new Date())
   const tomorrow = toDateString(addDays(new Date(), 1))
   const dayAfter = toDateString(addDays(new Date(), 2))
@@ -114,6 +120,37 @@ export function TaskFields({
           disabled={disabled}
           autoFocus={autoFocus}
         />
+      </div>
+
+      <div>
+        <label className={labelClass()} htmlFor="task-project">
+          项目
+        </label>
+        <div className="flex items-center gap-2">
+          <span
+            className="h-2.5 w-2.5 shrink-0 rounded-full bg-slate-300"
+            style={selectedProject ? { backgroundColor: selectedProject.color } : undefined}
+          />
+          <select
+            id="task-project"
+            className={cn(inputClass, 'cursor-pointer')}
+            value={value.projectId}
+            onChange={(event) => onChange({ projectId: event.target.value })}
+            disabled={disabled || projects.length === 0}
+          >
+            <option value="">{projects.length === 0 ? '还没有项目' : '不关联项目'}</option>
+            {projects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        {projects.length === 0 ? (
+          <p className="mt-1.5 text-[11px] text-[var(--muted)]">
+            可以在左侧项目列表新建项目后，再关联任务。
+          </p>
+        ) : null}
       </div>
 
       <div>

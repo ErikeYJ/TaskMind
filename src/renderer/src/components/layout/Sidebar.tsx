@@ -3,7 +3,9 @@ import {
   Check,
   Inbox,
   Pause,
+  Pencil,
   Play,
+  Plus,
   Settings,
   Sparkles
 } from 'lucide-react'
@@ -27,6 +29,13 @@ export function Sidebar(): React.JSX.Element {
   const counts = useTaskStore((state) => state.counts)
   const setView = useTaskStore((state) => state.setView)
   const openSettings = useTaskStore((state) => state.openSettings)
+  const projects = useTaskStore((state) => state.projects)
+  const projectsLoading = useTaskStore((state) => state.projectsLoading)
+  const projectsError = useTaskStore((state) => state.projectsError)
+  const projectFilterId = useTaskStore((state) => state.projectFilterId)
+  const setProjectFilter = useTaskStore((state) => state.setProjectFilter)
+  const loadProjects = useTaskStore((state) => state.loadProjects)
+  const openProjectEditor = useTaskStore((state) => state.openProjectEditor)
   const settings = useSettingsStore((state) => state.settings)
 
   return (
@@ -43,29 +52,130 @@ export function Sidebar(): React.JSX.Element {
         </div>
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-4">
-        {VIEW_ORDER.map((item) => {
-          const active = view === item
-          return (
-            <button
-              key={item}
-              type="button"
-              onClick={() => void setView(item)}
-              className={cn(
-                'flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[13px] font-medium transition-colors',
-                active
-                  ? 'bg-[var(--surface)] text-[var(--primary)] shadow-sm ring-1 ring-[var(--border)]'
-                  : 'text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--fg)]'
-              )}
-            >
-              <span className={cn(active ? 'text-[var(--primary)]' : 'text-[var(--muted)]')}>
-                {icons[item]}
-              </span>
-              <span className="flex-1">{VIEW_LABELS[item]}</span>
-              <CountBadge count={counts[item]} active={active} />
-            </button>
-          )
-        })}
+      <nav className="flex-1 overflow-y-auto px-3 pb-4">
+        <div className="space-y-1">
+          {VIEW_ORDER.map((item) => {
+            const active = view === item
+            return (
+              <button
+                key={item}
+                type="button"
+                onClick={() => void setView(item)}
+                className={cn(
+                  'flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[13px] font-medium transition-colors',
+                  active
+                    ? 'bg-[var(--surface)] text-[var(--primary)] shadow-sm ring-1 ring-[var(--border)]'
+                    : 'text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--fg)]'
+                )}
+              >
+                <span className={cn(active ? 'text-[var(--primary)]' : 'text-[var(--muted)]')}>
+                  {icons[item]}
+                </span>
+                <span className="flex-1">{VIEW_LABELS[item]}</span>
+                <CountBadge count={counts[item]} active={active} />
+              </button>
+            )
+          })}
+        </div>
+
+        <div className="mt-5 border-t border-[var(--border)] pt-4">
+          <div className="mb-1 flex items-center justify-between px-3">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--muted)]">
+              项目
+            </span>
+            <div className="flex items-center gap-0.5">
+              {projectFilterId ? (
+                <button
+                  type="button"
+                  className="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-[var(--muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--fg)]"
+                  onClick={() => void setProjectFilter(null)}
+                  title="清除项目筛选"
+                >
+                  全部
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="flex h-6 w-6 items-center justify-center rounded-md text-[var(--muted)] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--fg)]"
+                onClick={() => openProjectEditor(null)}
+                title="新建项目"
+                aria-label="新建项目"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-0.5">
+            {projectsLoading && projects.length === 0 ? (
+              <div className="px-3 py-2 text-[11px] text-[var(--muted)]">正在读取项目…</div>
+            ) : null}
+
+            {projectsError && projects.length === 0 ? (
+              <button
+                type="button"
+                className="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-[11px] text-[var(--danger)] hover:bg-[var(--danger-soft)]"
+                onClick={() => void loadProjects()}
+              >
+                <span className="truncate">读取项目失败</span>
+                <span className="shrink-0 underline">重试</span>
+              </button>
+            ) : null}
+
+            {!projectsLoading && !projectsError && projects.length === 0 ? (
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 rounded-xl border border-dashed border-[var(--border-strong)] px-3 py-2.5 text-left text-[11px] text-[var(--muted)] transition-colors hover:border-[var(--primary)] hover:bg-[var(--surface)] hover:text-[var(--fg)]"
+                onClick={() => openProjectEditor(null)}
+              >
+                <Plus className="h-3.5 w-3.5 shrink-0" />
+                <span>新建第一个项目</span>
+              </button>
+            ) : null}
+
+            {projects.map((project) => {
+              const active = projectFilterId === project.id
+              return (
+                <div
+                  key={project.id}
+                  className={cn(
+                    'group flex items-center rounded-xl transition-colors',
+                    active
+                      ? 'bg-[var(--surface)] shadow-sm ring-1 ring-[var(--border)]'
+                      : 'hover:bg-[var(--surface)]'
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => void setProjectFilter(project.id)}
+                    className={cn(
+                      'flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-3 py-2 text-left text-[13px] font-medium transition-colors',
+                      active
+                        ? 'text-[var(--primary)]'
+                        : 'text-[var(--muted)] hover:text-[var(--fg)]'
+                    )}
+                  >
+                    <span
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: project.color }}
+                    />
+                    <span className="flex-1 truncate">{project.name}</span>
+                    <CountBadge count={project.openTaskCount} active={active} />
+                  </button>
+                  <button
+                    type="button"
+                    className="mr-1.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[var(--muted)] opacity-0 transition-opacity hover:bg-[var(--surface-hover)] hover:text-[var(--fg)] group-hover:opacity-100 focus-visible:opacity-100"
+                    onClick={() => openProjectEditor(project)}
+                    title={`编辑项目：${project.name}`}
+                    aria-label={`编辑项目：${project.name}`}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+        </div>
       </nav>
 
       <div className="border-t border-[var(--border)] p-3">

@@ -9,6 +9,7 @@ import { applyAutostart, isStartHidden } from './services/autostart'
 import { BackupService } from './services/backupService'
 import { MediaService } from './services/mediaService'
 import { applyPendingImport } from './services/pendingImport'
+import { ProjectService } from './services/projectService'
 import { ReminderService } from './services/reminderService'
 import { SettingsService } from './services/settingsService'
 import { TaskService } from './services/taskService'
@@ -105,6 +106,7 @@ async function bootstrap(): Promise<void> {
   db = openDatabase(join(userDataDir, 'taskmind.db'))
   media = new MediaService(userDataDir)
   tasks = new TaskService(db, media)
+  const projects = new ProjectService(db)
   const ai = new AiService(settings, media)
 
   await registerMediaProtocol()
@@ -160,10 +162,15 @@ async function bootstrap(): Promise<void> {
     refreshBall()
   })
 
+  projects.onChanged(() => {
+    mainWindow?.send(IPC.events.projectsChanged)
+  })
+
   registerIpc({
     db,
     settings,
     tasks,
+    projects,
     ai,
     media,
     mainWindow,

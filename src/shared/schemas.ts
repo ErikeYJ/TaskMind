@@ -3,6 +3,8 @@ import { z } from 'zod'
 export const taskStatusSchema = z.enum(['todo', 'in_progress', 'suspended', 'done'])
 export const taskViewSchema = z.enum(['today', 'all_open', 'in_progress', 'completed', 'suspended'])
 export const taskActionSchema = z.enum(['start', 'suspend', 'resume', 'complete', 'restore'])
+export const projectIdFilterSchema = z.string().min(1).max(100).nullable().optional()
+export const projectColorSchema = z.string().regex(/^#[0-9a-fA-F]{6}$/)
 
 export const screenshotInputSchema = z
   .object({
@@ -17,6 +19,7 @@ export const createTaskInputSchema = z
     content: z.string().max(20_000).optional(),
     client: z.string().max(160).nullable().optional(),
     notes: z.string().max(10_000).optional(),
+    projectId: projectIdFilterSchema,
     dueDate: z.string().max(20).nullable().optional(),
     dueTime: z.string().max(10).nullable().optional(),
     screenshots: z.array(screenshotInputSchema).max(12).optional()
@@ -29,12 +32,31 @@ export const updateTaskInputSchema = z
     content: z.string().max(20_000).optional(),
     client: z.string().max(160).nullable().optional(),
     notes: z.string().max(10_000).optional(),
+    projectId: projectIdFilterSchema,
     dueDate: z.string().max(20).nullable().optional(),
     dueTime: z.string().max(10).nullable().optional()
   })
   .strict()
 
 export const taskIdSchema = z.object({
+  id: z.string().min(1).max(100)
+})
+
+export const createProjectInputSchema = z
+  .object({
+    name: z.string().trim().min(1, '项目名称不能为空').max(60),
+    color: projectColorSchema
+  })
+  .strict()
+
+export const updateProjectInputSchema = z
+  .object({
+    name: z.string().trim().min(1, '项目名称不能为空').max(60).optional(),
+    color: projectColorSchema.optional()
+  })
+  .strict()
+
+export const projectIdSchema = z.object({
   id: z.string().min(1).max(100)
 })
 

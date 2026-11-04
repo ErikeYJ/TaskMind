@@ -59,6 +59,30 @@ function migrate(db: AppDatabase): void {
     db.exec(SCHEMA_V1)
     db.pragma('user_version = 1')
   }
+
+  if (version < 2) {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS projects (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL COLLATE NOCASE,
+        color TEXT NOT NULL DEFAULT '#0d9488',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_name ON projects(name COLLATE NOCASE);
+    `)
+
+    const columns = db.prepare('PRAGMA table_info(tasks)').all() as Array<{ name: string }>
+    if (!columns.some((column) => column.name === 'project_id')) {
+      db.exec(`
+        ALTER TABLE tasks
+        ADD COLUMN project_id TEXT REFERENCES projects(id) ON DELETE SET NULL;
+      `)
+    }
+    db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);`)
+    db.pragma('user_version = 2')
+  }
 }
 
 export function openDatabase(filePath: string): AppDatabase {

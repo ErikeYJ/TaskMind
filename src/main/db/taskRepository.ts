@@ -13,6 +13,7 @@ export interface TaskRow {
   content: string
   client: string | null
   notes: string
+  project_id: string | null
   due_date: string | null
   due_time: string | null
   status: TaskStatus
@@ -71,6 +72,7 @@ export function mapTaskRow(row: TaskRow, screenshots: ScreenshotMeta[]): Task {
     content: row.content,
     client: row.client,
     notes: row.notes,
+    projectId: row.project_id,
     dueDate: row.due_date,
     dueTime: row.due_time,
     status: row.status,
@@ -88,40 +90,48 @@ export function mapTaskRow(row: TaskRow, screenshots: ScreenshotMeta[]): Task {
 export class TaskRepository {
   constructor(private readonly db: AppDatabase) {}
 
-  list(view: TaskView, today: string): Task[] {
+  list(view: TaskView, today: string, projectId: string | null = null): Task[] {
+    const projectClause = projectId ? ' AND project_id = @projectId' : ''
+    const params: Record<string, unknown> = projectId ? { today, projectId } : { today }
     let rows: TaskRow[]
     if (view === 'today') {
       rows = this.db
         .prepare(
-          `SELECT * FROM tasks WHERE status = 'todo' AND due_date IS NOT NULL AND due_date <= ? ${ACTIVE_ORDER}`
+          `SELECT * FROM tasks WHERE status = 'todo' AND due_date IS NOT NULL AND due_date <= @today${projectClause} ${ACTIVE_ORDER}`
         )
-        .all(today) as TaskRow[]
+        .all(params) as TaskRow[]
     } else if (view === 'all_open') {
       rows = this.db
         .prepare(
-          `SELECT * FROM tasks WHERE status IN ('todo','in_progress','suspended') ${ACTIVE_ORDER}`
+          `SELECT * FROM tasks WHERE status IN ('todo','in_progress','suspended')${projectClause} ${ACTIVE_ORDER}`
         )
-        .all() as TaskRow[]
+        .all(projectId ? { projectId } : {}) as TaskRow[]
     } else if (view === 'in_progress') {
       rows = this.db
-        .prepare(`SELECT * FROM tasks WHERE status = 'in_progress' ${ACTIVE_ORDER}`)
-        .all() as TaskRow[]
+        .prepare(
+          `SELECT * FROM tasks WHERE status = 'in_progress'${projectClause} ${ACTIVE_ORDER}`
+        )
+        .all(projectId ? { projectId } : {}) as TaskRow[]
     } else if (view === 'suspended') {
       rows = this.db
-        .prepare(`SELECT * FROM tasks WHERE status = 'suspended' ${ACTIVE_ORDER}`)
-        .all() as TaskRow[]
+        .prepare(
+          `SELECT * FROM tasks WHERE status = 'suspended'${projectClause} ${ACTIVE_ORDER}`
+        )
+        .all(projectId ? { projectId } : {}) as TaskRow[]
     } else {
       rows = this.db
         .prepare(
-          `SELECT * FROM tasks WHERE status = 'done' ORDER BY completed_at DESC, updated_at DESC`
+          `SELECT * FROM tasks WHERE status = 'done'${projectClause} ORDER BY completed_at DESC, updated_at DESC`
         )
-        .all() as TaskRow[]
+        .all(projectId ? { projectId } : {}) as TaskRow[]
     }
 
     return this.withScreenshots(rows)
   }
 
-  counts(today: string): TaskCounts {
+  counts(today: string, projectId: string | null = null): TaskCounts {
+    const projectClause = projectId ? ' WHERE project_id = @projectId' : ''
+    const params: Record<string, unknown> = projectId ? { today, projectId } : { today }
     const row = this.db
       .prepare(
         `SELECT
@@ -130,9 +140,9 @@ export class TaskRepository {
           COALESCE(SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END), 0) AS in_progress,
           COALESCE(SUM(CASE WHEN status = 'done' THEN 1 ELSE 0 END), 0) AS completed,
           COALESCE(SUM(CASE WHEN status = 'suspended' THEN 1 ELSE 0 END), 0) AS suspended
-        FROM tasks`
+        FROM tasks${projectClause}`
       )
-      .get({ today }) as TaskCounts
+      .get(params) as TaskCounts
     return row
   }
 
@@ -146,11 +156,11 @@ export class TaskRepository {
     this.db
       .prepare(
         `INSERT INTO tasks (
-          id, title, content, client, notes, due_date, due_time, status,
+          id, title, content, client, notes, project_id, due_date, due_time, status,
           status_before_suspend, status_before_done, started_at, suspended_at,
           completed_at, created_at, updated_at
         ) VALUES (
-          @id, @title, @content, @client, @notes, @due_date, @due_time, @status,
+          @id, @title, @content, @client, @notes, @project_id, @due_date, @due_time, @status,
           @status_before_suspend, @status_before_done, @started_at, @suspended_at,
           @completed_at, @created_at, @updated_at
         )`
@@ -167,6 +177,7 @@ export class TaskRepository {
       'content',
       'client',
       'notes',
+      'project_id',
       'due_date',
       'due_time',
       'status',

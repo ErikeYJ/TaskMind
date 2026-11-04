@@ -47,6 +47,15 @@ function setClipboardImage(filePath) {
   )
 }
 
+async function dismissToasts(page) {
+  for (let i = 0; i < 5; i += 1) {
+    const button = page.getByRole('button', { name: '关闭提示' }).first()
+    if ((await button.count()) === 0) break
+    await button.click().catch(() => {})
+    await page.waitForTimeout(150)
+  }
+}
+
 async function main() {
   const packagedExecutable = process.env.E2E_EXECUTABLE?.trim()
   log(packagedExecutable ? `launching packaged app: ${packagedExecutable}` : 'launching dev build')
@@ -85,6 +94,70 @@ async function main() {
   await onboarding.waitFor({ state: 'hidden', timeout: 15_000 })
   await mainPage.getByText('今日待办', { exact: true }).first().waitFor()
   await mainPage.screenshot({ path: join(artifacts, '02-main-empty.png') })
+
+  log('creating a project and associating a new task')
+  await mainPage.getByTitle('新建项目').click()
+  const projectDialog = mainPage.getByRole('dialog').filter({ hasText: '新建项目' })
+  await projectDialog.waitFor()
+  await projectDialog.locator('#project-name').fill('E2E 项目')
+  await mainPage.screenshot({ path: join(artifacts, '02a-project-dialog.png') })
+  await projectDialog.getByRole('button', { name: '创建项目' }).click()
+  await mainPage.getByText('项目已创建').waitFor({ timeout: 15_000 })
+  await projectDialog.waitFor({ state: 'hidden' })
+
+  const projectRow = mainPage
+    .locator('button')
+    .filter({ hasText: 'E2E 项目' })
+    .first()
+  await projectRow.waitFor({ timeout: 10_000 })
+  await projectRow.click()
+  await mainPage.getByRole('heading', { name: 'E2E 项目' }).waitFor({ timeout: 10_000 })
+
+  await mainPage.getByRole('button', { name: '添加任务' }).first().click()
+  const projectTaskDialog = mainPage.getByRole('dialog').filter({ hasText: '添加任务' })
+  await projectTaskDialog.waitFor()
+  const selectedProject = await projectTaskDialog
+    .locator('#task-project option:checked')
+    .textContent()
+  assert.equal(selectedProject?.trim(), 'E2E 项目', 'project filter was not the default for the new task')
+  await projectTaskDialog.locator('#task-title').fill('E2E 项目任务')
+  await projectTaskDialog.locator('#task-content').fill('这条任务应该在 E2E 项目下。')
+  await projectTaskDialog.getByRole('button', { name: '添加任务' }).click()
+  await mainPage.getByText('任务已添加').waitFor({ timeout: 15_000 })
+  await projectTaskDialog.waitFor({ state: 'hidden' })
+
+  const projectTaskCard = mainPage
+    .locator('div[role="button"]')
+    .filter({ hasText: 'E2E 项目任务' })
+    .first()
+  await projectTaskCard.waitFor({ timeout: 10_000 })
+  await projectTaskCard.getByText('E2E 项目', { exact: true }).waitFor()
+  await dismissToasts(mainPage)
+  await mainPage.waitForTimeout(250)
+  await mainPage.screenshot({ path: join(artifacts, '03-project-task.png') })
+
+  await projectTaskCard.click()
+  const projectTaskDetail = mainPage.getByRole('dialog').filter({ hasText: 'E2E 项目任务' })
+  await projectTaskDetail.waitFor({ timeout: 10_000 })
+  await projectTaskDetail.getByText('E2E 项目', { exact: true }).first().waitFor()
+  await projectTaskDetail.getByRole('button', { name: '关闭' }).click()
+  await projectTaskDetail.waitFor({ state: 'hidden' })
+
+  log('editing the project and checking the task badge updates')
+  await projectRow.hover()
+  await mainPage.getByRole('button', { name: '编辑项目：E2E 项目' }).click()
+  const editProjectDialog = mainPage.getByRole('dialog').filter({ hasText: '编辑项目' })
+  await editProjectDialog.waitFor()
+  await editProjectDialog.locator('#project-name').fill('E2E 项目 2')
+  await editProjectDialog.getByRole('button', { name: '保存项目' }).click()
+  await mainPage.getByText('项目已保存').waitFor({ timeout: 15_000 })
+  await editProjectDialog.waitFor({ state: 'hidden' })
+  await mainPage.getByRole('heading', { name: 'E2E 项目 2' }).waitFor({ timeout: 10_000 })
+  await projectTaskCard.getByText('E2E 项目 2', { exact: true }).waitFor()
+  await dismissToasts(mainPage)
+
+  await mainPage.getByRole('button', { name: '查看全部' }).click()
+  await mainPage.getByRole('heading', { name: '未完成' }).waitFor({ timeout: 10_000 })
 
   log('adding a manual task')
   await mainPage.getByRole('button', { name: '添加任务' }).first().click()
@@ -177,11 +250,7 @@ async function main() {
     await mainPage.waitForTimeout(350)
     await mainPage.screenshot({ path: join(artifacts, '06b-ai-task-added.png') })
 
-    const closeToast = mainPage.getByRole('button', { name: '关闭提示' }).last()
-    if ((await closeToast.count()) > 0) {
-      await closeToast.click()
-      await mainPage.waitForTimeout(200)
-    }
+    await dismissToasts(mainPage)
 
     log('opening AI task detail and screenshot lightbox')
     const aiCard = mainPage
@@ -333,6 +402,8 @@ async function main() {
   assert.equal(notifyResult.ok, true, 'notification test failed')
 
   log('testing ball size and edge docking')
+  await mainPage.evaluate(() => window.taskmind.settings.update({ ball: { dock: 'none' } }))
+  await ballPage.waitForTimeout(400)
   await ballPage.evaluate(() => window.taskmind.ball.setExpanded(false))
   await ballPage.waitForTimeout(250)
   const sizeSlider = settingsDialog.locator('input[aria-label="浮球大小"]')
@@ -419,6 +490,35 @@ async function main() {
   await settingsDialog.getByRole('button', { name: '完成' }).click()
   await mainPage.waitForTimeout(350)
   await mainPage.screenshot({ path: join(artifacts, '10-main-dark.png') })
+
+  log('deleting the project and checking the task is preserved')
+  const renamedProjectRow = mainPage
+    .locator('button')
+    .filter({ hasText: 'E2E 项目 2' })
+    .first()
+  await renamedProjectRow.hover()
+  await mainPage.getByRole('button', { name: '编辑项目：E2E 项目 2' }).click()
+  const editRenamedProject = mainPage.getByRole('dialog').filter({ hasText: '编辑项目' })
+  await editRenamedProject.waitFor({ timeout: 10_000 })
+  await editRenamedProject.getByRole('button', { name: '删除', exact: true }).click()
+  const confirmDeleteProject = mainPage
+    .getByRole('dialog')
+    .filter({ hasText: '删除这个项目？' })
+  await confirmDeleteProject.waitFor({ timeout: 10_000 })
+  await confirmDeleteProject.getByRole('button', { name: '删除项目' }).click()
+  await mainPage.getByText('项目已删除，任务已保留').waitFor({ timeout: 15_000 })
+  await mainPage.getByRole('button', { name: /未完成/ }).first().click()
+  await mainPage.getByRole('heading', { name: '未完成' }).waitFor({ timeout: 10_000 })
+  const preservedProjectTask = mainPage
+    .locator('div[role="button"]')
+    .filter({ hasText: 'E2E 项目任务' })
+    .first()
+  await preservedProjectTask.waitFor({ timeout: 10_000 })
+  assert.equal(
+    await mainPage.getByText('E2E 项目 2', { exact: true }).count(),
+    0,
+    'project badge remained after deleting the project'
+  )
 
   assert.deepEqual(pageErrors, [], `renderer errors: ${pageErrors.join('\n')}`)
   log('E2E smoke test passed')

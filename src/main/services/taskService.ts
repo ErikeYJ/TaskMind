@@ -78,12 +78,20 @@ export class TaskService {
     }
   }
 
-  list(view: TaskView): Task[] {
-    return this.repository.list(view, getTodayString())
+  list(view: TaskView, projectId: string | null = null): Task[] {
+    return this.repository.list(view, getTodayString(), projectId)
   }
 
-  counts(): TaskCounts {
-    return this.repository.counts(getTodayString())
+  counts(projectId: string | null = null): TaskCounts {
+    return this.repository.counts(getTodayString(), projectId)
+  }
+
+  private normalizeProjectId(projectId: string | null | undefined): string | null {
+    const id = typeof projectId === 'string' && projectId.trim() ? projectId.trim() : null
+    if (!id) return null
+    const exists = this.db.prepare('SELECT 1 AS found FROM projects WHERE id = ?').get(id)
+    if (!exists) throw new Error('项目不存在')
+    return id
   }
 
   get(id: string): Task | null {
@@ -112,6 +120,7 @@ export class TaskService {
         content: (input.content ?? '').trim(),
         client: input.client?.trim() || null,
         notes: (input.notes ?? '').trim(),
+        project_id: this.normalizeProjectId(input.projectId),
         due_date: due.dueDate,
         due_time: due.dueTime,
         status: 'todo',
@@ -162,6 +171,9 @@ export class TaskService {
     if (patch.content !== undefined) fields.content = patch.content.trim()
     if (patch.client !== undefined) fields.client = patch.client?.trim() || null
     if (patch.notes !== undefined) fields.notes = patch.notes.trim()
+    if (patch.projectId !== undefined) {
+      fields.project_id = this.normalizeProjectId(patch.projectId)
+    }
 
     if (patch.dueDate !== undefined || patch.dueTime !== undefined) {
       const due = normalizeDue(

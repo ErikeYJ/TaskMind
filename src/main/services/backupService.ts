@@ -118,7 +118,7 @@ export class BackupService {
         ? await dialog.showMessageBox(parent, {
             type: 'warning',
             title: '导入备份',
-            message: '导入会替换当前任务和截图数据。',
+            message: '导入会替换当前任务、项目和截图数据。',
             detail:
               '当前数据会先自动备份到数据目录下的 pre-import-* 文件夹。API Key 不会从备份恢复，本机已保存的 Key 会保留。',
             buttons: ['取消', '导入并重启'],
@@ -129,7 +129,7 @@ export class BackupService {
         : await dialog.showMessageBox({
             type: 'warning',
             title: '导入备份',
-            message: '导入会替换当前任务和截图数据。',
+            message: '导入会替换当前任务、项目和截图数据。',
             detail:
               '当前数据会先自动备份到数据目录下的 pre-import-* 文件夹。API Key 不会从备份恢复，本机已保存的 Key 会保留。',
             buttons: ['取消', '导入并重启'],

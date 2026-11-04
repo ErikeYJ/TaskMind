@@ -158,7 +158,10 @@ export function AddTaskDialog(): React.JSX.Element | null {
     didInitRef.current = true
     clearAiTimer()
     aiGeneration.current += 1
-    setForm(EMPTY_TASK_FORM)
+    setForm({
+      ...EMPTY_TASK_FORM,
+      projectId: useTaskStore.getState().projectFilterId ?? ''
+    })
     setImages([])
     imagesRef.current = []
     setAiState('idle')
@@ -208,6 +211,7 @@ export function AddTaskDialog(): React.JSX.Element | null {
     setError(null)
     const input: CreateTaskInput = {
       title: form.title.trim(),
+      projectId: form.projectId || null,
       client: form.client.trim() || null,
       content: form.content,
       notes: form.notes,

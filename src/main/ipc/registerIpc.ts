@@ -6,19 +6,24 @@ import {
   aiExtractInputSchema,
   apiKeySchema,
   ballExpandedSchema,
+  createProjectInputSchema,
   createTaskInputSchema,
+  projectIdFilterSchema,
+  projectIdSchema,
   screenshotIdSchema,
   settingsPatchSchema,
   taskActionSchema,
   taskIdSchema,
   taskViewSchema,
   transitionTaskSchema,
+  updateProjectInputSchema,
   updateTaskInputSchema
 } from '../../shared/schemas'
 import type { AppDatabase } from '../db/database'
 import type { AiService } from '../services/aiService'
 import type { BackupService } from '../services/backupService'
 import type { MediaService } from '../services/mediaService'
+import type { ProjectService } from '../services/projectService'
 import type { ReminderService } from '../services/reminderService'
 import type { SettingsService } from '../services/settingsService'
 import type { TaskService } from '../services/taskService'
@@ -29,6 +34,7 @@ export interface IpcContext {
   db: AppDatabase
   settings: SettingsService
   tasks: TaskService
+  projects: ProjectService
   ai: AiService
   media: MediaService
   mainWindow: MainWindowManager
@@ -47,13 +53,35 @@ function handle(
 }
 
 export function registerIpc(context: IpcContext): void {
-  const { tasks, ai, settings, ballWindow, mainWindow, reminders, backup } = context
+  const { tasks, projects, ai, settings, ballWindow, mainWindow, reminders, backup } = context
 
-  handle(IPC.tasksList, (_event, view) => {
-    return tasks.list(taskViewSchema.parse(view))
+  handle(IPC.tasksList, (_event, view, projectId) => {
+    return tasks.list(
+      taskViewSchema.parse(view),
+      projectIdFilterSchema.parse(projectId) ?? null
+    )
   })
 
-  handle(IPC.tasksCounts, () => tasks.counts())
+  handle(IPC.tasksCounts, (_event, projectId) => {
+    return tasks.counts(projectIdFilterSchema.parse(projectId) ?? null)
+  })
+
+  handle(IPC.projectsList, () => projects.list())
+
+  handle(IPC.projectsCreate, (_event, input) => {
+    return projects.create(createProjectInputSchema.parse(input))
+  })
+
+  handle(IPC.projectsUpdate, (_event, id, patch) => {
+    return projects.update(
+      projectIdSchema.shape.id.parse(id),
+      updateProjectInputSchema.parse(patch)
+    )
+  })
+
+  handle(IPC.projectsDelete, (_event, id) => {
+    return projects.delete(projectIdSchema.shape.id.parse(id))
+  })
 
   handle(IPC.tasksGet, (_event, id) => {
     return tasks.get(taskIdSchema.shape.id.parse(id))

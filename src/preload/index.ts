@@ -38,8 +38,8 @@ const api: TaskmindApi = {
     node: process.versions.node
   },
   tasks: {
-    list: (view) => invoke(IPC.tasksList, view),
-    counts: () => invoke(IPC.tasksCounts),
+    list: (view, projectId = null) => invoke(IPC.tasksList, view, projectId),
+    counts: (projectId = null) => invoke(IPC.tasksCounts, projectId),
     get: (id) => invoke(IPC.tasksGet, id),
     create: (input) => invoke(IPC.tasksCreate, input),
     update: (id, patch) => invoke(IPC.tasksUpdate, id, patch),
@@ -47,6 +47,12 @@ const api: TaskmindApi = {
     delete: (id) => invoke(IPC.tasksDelete, id),
     addScreenshot: (taskId, input) => invoke(IPC.tasksAddScreenshot, taskId, input),
     deleteScreenshot: (id) => invoke(IPC.tasksDeleteScreenshot, id)
+  },
+  projects: {
+    list: () => invoke(IPC.projectsList),
+    create: (input) => invoke(IPC.projectsCreate, input),
+    update: (id, patch) => invoke(IPC.projectsUpdate, id, patch),
+    delete: (id) => invoke(IPC.projectsDelete, id)
   },
   ai: {
     extract: (imageDataUrls) => invoke(IPC.aiExtract, imageDataUrls),
@@ -82,6 +88,7 @@ const api: TaskmindApi = {
   },
   events: {
     onTasksChanged: (callback) => subscribeVoid(IPC.events.tasksChanged, callback),
+    onProjectsChanged: (callback) => subscribeVoid(IPC.events.projectsChanged, callback),
     onSettingsChanged: (callback) =>
       subscribe<AppSettings>(IPC.events.settingsChanged, callback),
     onNavigateTask: (callback) => subscribe<string>(IPC.events.navigateTask, callback),

@@ -6,20 +6,27 @@ import type {
   BackupResult,
   BallLayout,
   BallTopTask,
+  CreateProjectInput,
   CreateTaskInput,
   ImportResult,
+  Project,
   ScreenshotInput,
   ScreenshotMeta,
   Task,
   TaskAction,
   TaskCounts,
   TaskView,
+  UpdateProjectInput,
   UpdateTaskInput
 } from './types'
 
 export const IPC = {
   tasksList: 'tasks:list',
   tasksCounts: 'tasks:counts',
+  projectsList: 'projects:list',
+  projectsCreate: 'projects:create',
+  projectsUpdate: 'projects:update',
+  projectsDelete: 'projects:delete',
   tasksGet: 'tasks:get',
   tasksCreate: 'tasks:create',
   tasksUpdate: 'tasks:update',
@@ -49,6 +56,7 @@ export const IPC = {
   appQuit: 'app:quit',
   events: {
     tasksChanged: 'event:tasksChanged',
+    projectsChanged: 'event:projectsChanged',
     settingsChanged: 'event:settingsChanged',
     navigateTask: 'event:navigateTask',
     openAddTask: 'event:openAddTask',
@@ -72,8 +80,8 @@ export interface TaskmindApi {
     node: string
   }
   tasks: {
-    list(view: TaskView): Promise<Task[]>
-    counts(): Promise<TaskCounts>
+    list(view: TaskView, projectId?: string | null): Promise<Task[]>
+    counts(projectId?: string | null): Promise<TaskCounts>
     get(id: string): Promise<Task | null>
     create(input: CreateTaskInput): Promise<Task>
     update(id: string, patch: UpdateTaskInput): Promise<Task>
@@ -81,6 +89,12 @@ export interface TaskmindApi {
     delete(id: string): Promise<void>
     addScreenshot(taskId: string, input: ScreenshotInput): Promise<ScreenshotMeta>
     deleteScreenshot(id: string): Promise<void>
+  }
+  projects: {
+    list(): Promise<Project[]>
+    create(input: CreateProjectInput): Promise<Project>
+    update(id: string, patch: UpdateProjectInput): Promise<Project>
+    delete(id: string): Promise<void>
   }
   ai: {
     extract(imageDataUrls: string[]): Promise<AiExtractionResult>
@@ -116,6 +130,7 @@ export interface TaskmindApi {
   }
   events: {
     onTasksChanged(callback: () => void): Unsubscribe
+    onProjectsChanged(callback: () => void): Unsubscribe
     onSettingsChanged(callback: (settings: AppSettings) => void): Unsubscribe
     onNavigateTask(callback: (taskId: string) => void): Unsubscribe
     onOpenAddTask(callback: (payload: OpenAddTaskPayload) => void): Unsubscribe
