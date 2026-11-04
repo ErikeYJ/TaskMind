@@ -1,0 +1,53 @@
+appId: com.taskmind.app
+productName: TaskMind
+copyright: Copyright © 2026 TaskMind
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - out/**/*
+  - resources/**/*
+  - package.json
+
+extraResources:
+  - from: resources
+    to: resources
+    filter:
+      - "**/*"
+
+asar: true
+asarUnpack:
+  - node_modules/better-sqlite3/**
+  - node_modules/bindings/**
+  - node_modules/file-uri-to-path/**
+
+npmRebuild: true
+compression: normal
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+  icon: build/icon.ico
+  artifactName: ${productName}-${version}-${arch}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: TaskMind
+  installerLanguages:
+    - zh_CN
+  language: "2052"
+  deleteAppDataOnUninstall: false
+
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}

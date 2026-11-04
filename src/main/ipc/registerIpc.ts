@@ -1,0 +1,168 @@
+import { app, ipcMain, shell } from 'electron'
+import { IPC } from '../../shared/api'
+import { APP_NAME, APP_VERSION } from '../../shared/constants'
+import {
+  addScreenshotSchema,
+  aiExtractInputSchema,
+  apiKeySchema,
+  ballExpandedSchema,
+  createTaskInputSchema,
+  screenshotIdSchema,
+  settingsPatchSchema,
+  taskActionSchema,
+  taskIdSchema,
+  taskViewSchema,
+  transitionTaskSchema,
+  updateTaskInputSchema
+} from '../../shared/schemas'
+import type { AppDatabase } from '../db/database'
+import type { AiService } from '../services/aiService'
+import type { BackupService } from '../services/backupService'
+import type { MediaService } from '../services/mediaService'
+import type { ReminderService } from '../services/reminderService'
+import type { SettingsService } from '../services/settingsService'
+import type { TaskService } from '../services/taskService'
+import type { BallWindowManager } from '../windows/ballWindow'
+import type { MainWindowManager } from '../windows/mainWindow'
+
+export interface IpcContext {
+  db: AppDatabase
+  settings: SettingsService
+  tasks: TaskService
+  ai: AiService
+  media: MediaService
+  mainWindow: MainWindowManager
+  ballWindow: BallWindowManager
+  reminders: ReminderService
+  backup: BackupService
+  onQuit: () => void
+}
+
+function handle(
+  channel: string,
+  handler: (event: Electron.IpcMainInvokeEvent, ...args: unknown[]) => unknown
+): void {
+  ipcMain.removeHandler(channel)
+  ipcMain.handle(channel, handler)
+}
+
+export function registerIpc(context: IpcContext): void {
+  const { tasks, ai, settings, ballWindow, mainWindow, reminders, backup } = context
+
+  handle(IPC.tasksList, (_event, view) => {
+    return tasks.list(taskViewSchema.parse(view))
+  })
+
+  handle(IPC.tasksCounts, () => tasks.counts())
+
+  handle(IPC.tasksGet, (_event, id) => {
+    return tasks.get(taskIdSchema.shape.id.parse(id))
+  })
+
+  handle(IPC.tasksCreate, (_event, input) => {
+    return tasks.create(createTaskInputSchema.parse(input))
+  })
+
+  handle(IPC.tasksUpdate, (_event, id, patch) => {
+    const parsedId = taskIdSchema.shape.id.parse(id)
+    return tasks.update(parsedId, updateTaskInputSchema.parse(patch))
+  })
+
+  handle(IPC.tasksTransition, (_event, id, action) => {
+    const parsed = transitionTaskSchema.parse({ id, action: taskActionSchema.parse(action) })
+    return tasks.transition(parsed.id, parsed.action)
+  })
+
+  handle(IPC.tasksDelete, (_event, id) => {
+    return tasks.delete(taskIdSchema.shape.id.parse(id))
+  })
+
+  handle(IPC.tasksAddScreenshot, (_event, taskId, input) => {
+    const parsed = addScreenshotSchema.parse({
+      taskId,
+      dataUrl: (input as { dataUrl?: unknown } | undefined)?.dataUrl,
+      fileName: (input as { fileName?: unknown } | undefined)?.fileName
+    })
+    return tasks.addScreenshot(parsed.taskId, parsed.dataUrl)
+  })
+
+  handle(IPC.tasksDeleteScreenshot, (_event, id) => {
+    return tasks.deleteScreenshot(screenshotIdSchema.shape.id.parse(id))
+  })
+
+  handle(IPC.aiExtract, (_event, imageDataUrl) => {
+    const parsed = aiExtractInputSchema.parse({ imageDataUrl })
+    return ai.extract(parsed.imageDataUrl)
+  })
+
+  handle(IPC.aiTestConnection, () => ai.testConnection())
+
+  handle(IPC.aiSetApiKey, (_event, key) => {
+    const parsed = apiKeySchema.parse({ key })
+    return settings.setApiKey(parsed.key)
+  })
+
+  handle(IPC.settingsGet, () => settings.getPublic())
+
+  handle(IPC.settingsUpdate, (_event, patch) => {
+    return settings.update(settingsPatchSchema.parse(patch))
+  })
+
+  handle(IPC.notificationsTest, () => reminders.testNotification())
+
+  handle(IPC.ballGetTop, () => tasks.getBallTop())
+
+  handle(IPC.ballGetLayout, () => ballWindow.getLayout())
+
+  handle(IPC.ballSetExpanded, (_event, expanded) => {
+    return ballWindow.setExpanded(ballExpandedSchema.parse({ expanded }).expanded)
+  })
+
+  handle(IPC.ballDragStart, () => {
+    ballWindow.dragStart()
+  })
+
+  handle(IPC.ballDragEnd, () => {
+    return ballWindow.dragEnd()
+  })
+
+  handle(IPC.ballOpenTask, (_event, id) => {
+    const parsed = taskIdSchema.shape.id.parse(id)
+    mainWindow.show()
+    mainWindow.send(IPC.events.navigateTask, parsed)
+    ballWindow.bringToFront()
+  })
+
+  handle(IPC.ballOpenMain, () => {
+    ballWindow.openMain()
+  })
+
+  handle(IPC.ballContextMenu, () => {
+    ballWindow.contextMenu()
+  })
+
+  handle(IPC.ballResetPosition, () => {
+    ballWindow.resetPosition()
+  })
+
+  handle(IPC.backupExport, () => backup.exportBackup())
+
+  handle(IPC.backupImport, () => backup.importBackup())
+
+  handle(IPC.appGetInfo, () => ({
+    name: APP_NAME,
+    version: app.getVersion() || APP_VERSION,
+    electronVersion: process.versions.electron,
+    dataDir: settings.getDataDir(),
+    platform: process.platform,
+    packaged: app.isPackaged
+  }))
+
+  handle(IPC.appOpenDataDir, async () => {
+    await shell.openPath(settings.getDataDir())
+  })
+
+  handle(IPC.appQuit, () => {
+    context.onQuit()
+  })
+}

@@ -1,0 +1,75 @@
+{
+  "name": "taskmind",
+  "version": "0.1.0",
+  "description": "TaskMind - Windows desktop task manager with screenshot capture, AI extraction, and a floating urgent-task ball.",
+  "main": "./out/main/index.js",
+  "author": "TaskMind contributors",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ErikeYJ/TaskMind.git"
+  },
+  "homepage": "https://github.com/ErikeYJ/TaskMind#readme",
+  "bugs": {
+    "url": "https://github.com/ErikeYJ/TaskMind/issues"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "packageManager": "pnpm@10.27.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "e2e": "electron-vite build && node scripts/e2e-smoke.mjs",
+    "rebuild": "electron-builder install-app-deps",
+    "dist": "electron-vite build && electron-builder --win nsis portable",
+    "dist:dir": "electron-vite build && electron-builder --dir"
+  },
+  "dependencies": {
+    "@radix-ui/react-dialog": "1.3.1",
+    "@radix-ui/react-dropdown-menu": "2.2.1",
+    "@radix-ui/react-switch": "1.4.1",
+    "archiver": "7.0.1",
+    "better-sqlite3": "13.0.3",
+    "clsx": "2.1.1",
+    "date-fns": "4.4.0",
+    "lucide-react": "1.67.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "tailwind-merge": "3.7.0",
+    "unzipper": "0.12.5",
+    "zod": "4.6.7",
+    "zustand": "5.0.16"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "4.3.4",
+    "@types/archiver": "8.0.0",
+    "@types/better-sqlite3": "9.6.0",
+    "@types/node": "26.6.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/unzipper": "0.10.11",
+    "@vitejs/plugin-react": "6.2.1",
+    "electron": "45.2.2",
+    "electron-builder": "26.18.0",
+    "electron-vite": "6.0.0",
+    "playwright-core": "1.64.1",
+    "tailwindcss": "4.3.4",
+    "typescript": "5.9.3",
+    "vite": "8.3.5",
+    "vitest": "5.1.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "better-sqlite3",
+      "esbuild",
+      "@tailwindcss/oxide"
+    ]
+  }
+}
