@@ -49,7 +49,7 @@ const api: TaskmindApi = {
     deleteScreenshot: (id) => invoke(IPC.tasksDeleteScreenshot, id)
   },
   ai: {
-    extract: (imageDataUrl) => invoke(IPC.aiExtract, imageDataUrl),
+    extract: (imageDataUrls) => invoke(IPC.aiExtract, imageDataUrls),
     testConnection: () => invoke(IPC.aiTestConnection),
     setApiKey: (key) => invoke(IPC.aiSetApiKey, key)
   },

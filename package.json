@@ -1,6 +1,6 @@
 {
   "name": "taskmind",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "TaskMind - Windows desktop task manager with screenshot capture, AI extraction, and a floating urgent-task ball.",
   "main": "./out/main/index.js",
   "author": "TaskMind contributors",

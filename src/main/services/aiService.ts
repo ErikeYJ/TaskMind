@@ -1,4 +1,4 @@
-import { APP_VERSION } from '../../shared/constants'
+import { APP_VERSION, MAX_SCREENSHOTS_PER_TASK } from '../../shared/constants'
 import {
   getLocalTimeZone,
   getTodayString,
@@ -177,10 +177,22 @@ export class AiService {
     }
   }
 
-  async extract(imageDataUrl: string): Promise<AiExtractionResult> {
-    let imagePayload: { base64: string; mimeType: string }
+  async extract(imageDataUrls: string[]): Promise<AiExtractionResult> {
+    const urls = imageDataUrls
+      .filter((value) => typeof value === 'string' && value.trim().length > 0)
+      .slice(0, MAX_SCREENSHOTS_PER_TASK)
+    if (urls.length === 0) {
+      return {
+        ok: false,
+        error: { code: 'BAD_RESPONSE', message: '请先添加至少一张截图' }
+      }
+    }
+
+    const imagePayloads: Array<{ base64: string; mimeType: string }> = []
     try {
-      imagePayload = await this.media.prepareForAi(imageDataUrl)
+      for (const imageDataUrl of urls) {
+        imagePayloads.push(await this.media.prepareForAi(imageDataUrl))
+      }
     } catch (error) {
       return {
         ok: false,
@@ -197,19 +209,21 @@ export class AiService {
     const timezone = getLocalTimeZone()
 
     const systemPrompt = [
-      '你是 TaskMind 的任务提取助手。用户会给你一张微信聊天截图。',
-      '请从截图中提取一个待办任务，只输出一个 JSON 对象，不要 Markdown 代码块，不要解释。',
+      '你是 TaskMind 的任务提取助手。用户会给你一张或多张微信聊天截图。',
+      '这些截图属于同一个任务的不同部分或上下文，请综合所有截图提取一个待办任务。',
+      '只输出一个 JSON 对象，不要 Markdown 代码块，不要解释。',
       '输出字段：title、content、client、dueDate、dueTime、notes、confidence。',
       'title：不超过 30 字的任务标题；content：任务详情；client：客户或来源，无法判断填 null；',
       'dueDate：YYYY-MM-DD，无法确定填 null，不要编造；dueTime：HH:mm，无法确定填 null；',
       'notes：给用户看的提醒/备注；confidence：0 到 1 之间的小数。',
-      '如果一张截图里有多件事，只提取最紧急、最明确的一件，其余细节放进 content 或 notes。',
+      '所有截图里的有用细节都要合并进 content 或 notes，不要遗漏，也不要重复。',
+      '如果多张截图里有多件事，只提取最紧急、最明确的一件，其余细节放进 content 或 notes。',
       '如果截图不是任务，title 填空字符串。'
     ].join('\n')
 
     const userPrompt = [
       `当前本地日期：${today}，当前时间：${nowTime}，时区：${timezone}。`,
-      '请按上面的要求提取任务。只输出 JSON。'
+      `共有 ${imagePayloads.length} 张截图，请综合全部截图按上面的要求提取任务。只输出 JSON。`
     ].join('\n')
 
     const body = {
@@ -221,12 +235,12 @@ export class AiService {
         {
           role: 'user',
           content: [
-            {
+            ...imagePayloads.map((image) => ({
               type: 'image_url',
               image_url: {
-                url: `data:${imagePayload.mimeType};base64,${imagePayload.base64}`
+                url: `data:${image.mimeType};base64,${image.base64}`
               }
-            },
+            })),
             { type: 'text', text: userPrompt }
           ]
         }

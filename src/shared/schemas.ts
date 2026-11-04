@@ -55,7 +55,7 @@ export const screenshotIdSchema = z.object({
 
 export const aiExtractInputSchema = z
   .object({
-    imageDataUrl: z.string().min(1)
+    imageDataUrls: z.array(z.string().min(1)).min(1).max(12)
   })
   .strict()
 

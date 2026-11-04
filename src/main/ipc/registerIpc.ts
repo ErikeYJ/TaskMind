@@ -90,9 +90,9 @@ export function registerIpc(context: IpcContext): void {
     return tasks.deleteScreenshot(screenshotIdSchema.shape.id.parse(id))
   })
 
-  handle(IPC.aiExtract, (_event, imageDataUrl) => {
-    const parsed = aiExtractInputSchema.parse({ imageDataUrl })
-    return ai.extract(parsed.imageDataUrl)
+  handle(IPC.aiExtract, (_event, imageDataUrls) => {
+    const parsed = aiExtractInputSchema.parse({ imageDataUrls })
+    return ai.extract(parsed.imageDataUrls)
   })
 
   handle(IPC.aiTestConnection, () => ai.testConnection())

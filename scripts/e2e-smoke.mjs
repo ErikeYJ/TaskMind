@@ -16,6 +16,9 @@ const dataDir = await mkdtemp(join(tmpdir(), 'taskmind-e2e-'))
 const imagePath = process.env.TEST_IMAGE_PATH
   ? resolve(process.env.TEST_IMAGE_PATH)
   : join(artifacts, 'ai-input.png')
+const secondImagePath = process.env.TEST_IMAGE_PATH_2
+  ? resolve(process.env.TEST_IMAGE_PATH_2)
+  : join(artifacts, 'ai-input-2.png')
 const envAiKey = process.env.TASKMIND_AI_KEY?.trim() ?? ''
 const inputAiKey = process.env.E2E_ENTER_KEY?.trim() ?? ''
 const hasAiKey = Boolean(envAiKey || inputAiKey)
@@ -27,6 +30,21 @@ const pageErrors = []
 
 function log(message) {
   console.log(`[e2e] ${message}`)
+}
+
+function setClipboardImage(filePath) {
+  assert.ok(existsSync(filePath), `test image missing: ${filePath}`)
+  const safePath = filePath.replace(/'/g, "''")
+  execFileSync(
+    'powershell.exe',
+    [
+      '-NoProfile',
+      '-STA',
+      '-Command',
+      `Add-Type -AssemblyName System.Windows.Forms,System.Drawing; $img=[System.Drawing.Image]::FromFile('${safePath}'); [System.Windows.Forms.Clipboard]::SetImage($img); $img.Dispose()`
+    ],
+    { windowsHide: true }
+  )
 }
 
 async function main() {
@@ -114,17 +132,8 @@ async function main() {
   await mainPage.screenshot({ path: join(artifacts, '05-restored.png') })
 
   if (hasAiKey) {
-    log('testing real clipboard paste + AI extraction')
-    execFileSync(
-      'powershell.exe',
-      [
-        '-NoProfile',
-        '-STA',
-        '-Command',
-        `Add-Type -AssemblyName System.Windows.Forms,System.Drawing; $img=[System.Drawing.Image]::FromFile('${imagePath.replace(/'/g, "''")}'); [System.Windows.Forms.Clipboard]::SetImage($img); $img.Dispose()`
-      ],
-      { windowsHide: true }
-    )
+    log('testing real clipboard paste + multi-image AI extraction')
+    setClipboardImage(imagePath)
     await new Promise((resolveWait) => setTimeout(resolveWait, 350))
 
     await mainPage.getByRole('button', { name: '添加任务' }).first().click()
@@ -140,8 +149,25 @@ async function main() {
       undefined,
       { timeout: 90_000 }
     )
+
+    log('adding a second screenshot to the same task')
+    setClipboardImage(secondImagePath)
+    await new Promise((resolveWait) => setTimeout(resolveWait, 350))
+    await mainPage.keyboard.press('Control+V')
+    await mainPage.waitForFunction(
+      () => {
+        const content = document.querySelector('#task-content')
+        const notes = document.querySelector('#task-notes')
+        const contentValue =
+          content instanceof HTMLTextAreaElement ? content.value : ''
+        const notesValue = notes instanceof HTMLTextAreaElement ? notes.value : ''
+        return contentValue.includes('2468') || notesValue.includes('2468')
+      },
+      undefined,
+      { timeout: 120_000 }
+    )
     const aiTitle = await aiDialog.locator('#task-title').inputValue()
-    log(`AI filled title: ${aiTitle}`)
+    log(`AI combined title: ${aiTitle}`)
     assert.ok(aiTitle.length > 2, 'AI did not fill a title')
     await mainPage.waitForTimeout(300)
     await mainPage.screenshot({ path: join(artifacts, '06-ai-filled.png') })

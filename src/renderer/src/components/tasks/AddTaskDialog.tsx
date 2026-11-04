@@ -42,7 +42,6 @@ export function AddTaskDialog(): React.JSX.Element | null {
 
   const [form, setForm] = useState<TaskFormValue>(EMPTY_TASK_FORM)
   const [images, setImages] = useState<AddImage[]>([])
-  const [primaryIndex, setPrimaryIndex] = useState(0)
   const [aiState, setAiState] = useState<AiState>('idle')
   const [aiError, setAiError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -50,17 +49,44 @@ export function AddTaskDialog(): React.JSX.Element | null {
   const [dragging, setDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const didInitRef = useRef(false)
+  const imagesRef = useRef<AddImage[]>([])
+  const aiTimer = useRef<number | null>(null)
+  const aiGeneration = useRef(0)
 
-  const runAiForImage = async (dataUrl: string): Promise<void> => {
+  useEffect(() => {
+    imagesRef.current = images
+  }, [images])
+
+  const clearAiTimer = (): void => {
+    if (aiTimer.current !== null) {
+      window.clearTimeout(aiTimer.current)
+      aiTimer.current = null
+    }
+  }
+
+  const runAiForImages = async (
+    nextImages: AddImage[],
+    generation: number
+  ): Promise<void> => {
+    if (generation !== aiGeneration.current) return
+    if (nextImages.length === 0) {
+      setAiState('idle')
+      setAiError(null)
+      return
+    }
     if (!useSettingsStore.getState().settings?.hasApiKey) {
       setAiState('error')
       setAiError('还没有配置 AI Key。请先到设置里填写 Key，再回来重新识别；也可以直接手动填写。')
       return
     }
+
     setAiState('loading')
     setAiError(null)
     try {
-      const result = await window.taskmind.ai.extract(dataUrl)
+      const result = await window.taskmind.ai.extract(
+        nextImages.map((image) => image.dataUrl)
+      )
+      if (generation !== aiGeneration.current) return
       if (!result.ok) {
         setAiState('error')
         setAiError(result.error.message)
@@ -77,14 +103,37 @@ export function AddTaskDialog(): React.JSX.Element | null {
       }))
       setAiState('done')
     } catch (err) {
+      if (generation !== aiGeneration.current) return
       setAiState('error')
       setAiError(getErrorMessage(err, 'AI 识别失败'))
     }
   }
 
+  const scheduleAi = (nextImages: AddImage[], delay = 450): void => {
+    clearAiTimer()
+    aiGeneration.current += 1
+    const generation = aiGeneration.current
+    if (nextImages.length === 0) {
+      setAiState('idle')
+      setAiError(null)
+      return
+    }
+    aiTimer.current = window.setTimeout(() => {
+      aiTimer.current = null
+      void runAiForImages(nextImages, generation)
+    }, delay)
+  }
+
+  const replaceImages = (nextImages: AddImage[]): void => {
+    imagesRef.current = nextImages
+    setImages(nextImages)
+    scheduleAi(nextImages)
+  }
+
   const handleFiles = async (files: File[]): Promise<void> => {
     if (files.length === 0) return
-    const remaining = 12 - images.length
+    const currentImages = imagesRef.current
+    const remaining = 12 - currentImages.length
     if (remaining <= 0) {
       toastError('每个任务最多 12 张截图')
       return
@@ -95,36 +144,32 @@ export function AddTaskDialog(): React.JSX.Element | null {
       dataUrl,
       fileName: selected[index]?.name
     }))
-    const hadImages = images.length > 0
-    setImages((current) => [...current, ...added].slice(0, 12))
-    if (!hadImages && added[0]) {
-      setPrimaryIndex(0)
-      void runAiForImage(added[0].dataUrl)
-    } else if (aiState !== 'done' && aiState !== 'loading' && added[0]) {
-      setPrimaryIndex(images.length)
-      void runAiForImage(added[0].dataUrl)
-    }
+    replaceImages([...currentImages, ...added].slice(0, 12))
   }
 
   useEffect(() => {
     if (!addOpen) {
       didInitRef.current = false
+      clearAiTimer()
+      aiGeneration.current += 1
       return
     }
     if (didInitRef.current) return
     didInitRef.current = true
+    clearAiTimer()
+    aiGeneration.current += 1
     setForm(EMPTY_TASK_FORM)
     setImages([])
-    setPrimaryIndex(0)
+    imagesRef.current = []
     setAiState('idle')
     setAiError(null)
     setError(null)
     setSaving(false)
     if (initialImages.length > 0) {
       const initial = initialImages.map((dataUrl) => ({ dataUrl }))
+      imagesRef.current = initial
       setImages(initial)
-      setPrimaryIndex(0)
-      void runAiForImage(initial[0].dataUrl)
+      scheduleAi(initial)
     }
   }, [addOpen, initialImages])
 
@@ -140,17 +185,18 @@ export function AddTaskDialog(): React.JSX.Element | null {
     return () => window.removeEventListener('paste', onPaste)
   }, [addOpen, images, aiState])
 
+  useEffect(() => {
+    return () => {
+      clearAiTimer()
+      aiGeneration.current += 1
+    }
+  }, [])
+
   if (!addOpen) return null
 
-  const primary = images[primaryIndex]
-
   const removeImage = (index: number): void => {
-    setImages((current) => current.filter((_, itemIndex) => itemIndex !== index))
-    setPrimaryIndex((current) => {
-      if (index === current) return 0
-      if (index < current) return current - 1
-      return current
-    })
+    const next = imagesRef.current.filter((_, itemIndex) => itemIndex !== index)
+    replaceImages(next)
   }
 
   const submit = async (): Promise<void> => {
@@ -186,12 +232,22 @@ export function AddTaskDialog(): React.JSX.Element | null {
     }
   }
 
+  const retryAi = (): void => {
+    if (images.length === 0) return
+    clearAiTimer()
+    aiGeneration.current += 1
+    const generation = aiGeneration.current
+    void runAiForImages(images, generation)
+  }
+
   const aiStatus = (): React.JSX.Element => {
     if (aiState === 'loading') {
       return (
         <div className="flex items-start gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-2.5 text-xs text-[var(--muted)]">
           <Loader2 className="mt-0.5 h-3.5 w-3.5 animate-spin text-[var(--primary)]" />
-          <span>AI 正在识别截图，你可以先检查或手动修改左侧内容。</span>
+          <span>
+            AI 正在综合分析 {images.length} 张截图，你可以先检查或手动修改左侧内容。
+          </span>
         </div>
       )
     }
@@ -199,7 +255,9 @@ export function AddTaskDialog(): React.JSX.Element | null {
       return (
         <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-300">
           <Sparkles className="mt-0.5 h-3.5 w-3.5" />
-          <span>AI 已填写标题、内容和备注，请检查后再添加。</span>
+          <span>
+            AI 已结合 {images.length} 张截图填写标题、内容和备注，请检查后再添加。
+          </span>
         </div>
       )
     }
@@ -213,11 +271,11 @@ export function AddTaskDialog(): React.JSX.Element | null {
           <button
             type="button"
             className="mt-2 inline-flex items-center gap-1 rounded-lg bg-white/60 px-2 py-1 text-[11px] font-medium transition-colors hover:bg-white/80 dark:bg-black/20 dark:hover:bg-black/30"
-            onClick={() => primary && void runAiForImage(primary.dataUrl)}
-            disabled={!primary}
+            onClick={retryAi}
+            disabled={images.length === 0}
           >
             <RefreshCw className="h-3 w-3" />
-            重试识别
+            重试识别全部
           </button>
         </div>
       )
@@ -225,13 +283,13 @@ export function AddTaskDialog(): React.JSX.Element | null {
     if (images.length === 0) {
       return (
         <div className="rounded-xl border border-dashed border-[var(--border-strong)] bg-[var(--surface-soft)] px-3 py-2.5 text-xs leading-5 text-[var(--muted)]">
-          先粘贴一张微信截图，AI 会尝试识别任务名称、内容、时间，并写好备注。识别不准的部分都可以手动改。
+          先粘贴一张或多张微信截图。AI 会综合所有截图识别任务名称、内容、时间，并写好备注；识别不准的部分都可以手动改。
         </div>
       )
     }
     return (
       <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-2.5 text-xs text-[var(--muted)]">
-        已附加 {images.length} 张截图。点击缩略图切换 AI 识别图，或点「重新识别」。
+        已附加 {images.length} 张截图，AI 会综合识别全部内容。
       </div>
     )
   }
@@ -252,7 +310,7 @@ export function AddTaskDialog(): React.JSX.Element | null {
                 添加任务
               </Dialog.Title>
               <Dialog.Description className="mt-0.5 text-xs text-[var(--muted)]">
-                粘贴微信截图让 AI 帮你填，或者直接手动写。
+                粘贴一张或多张微信截图让 AI 帮你填，也可以直接手动写。
               </Dialog.Description>
             </div>
             <DialogPrimitive.Close asChild>
@@ -305,7 +363,7 @@ export function AddTaskDialog(): React.JSX.Element | null {
                     Ctrl+V 粘贴微信截图
                   </div>
                   <div className="mt-1 text-[11px] leading-5 text-[var(--muted)]">
-                    也可以拖入图片，或点击选择文件
+                    可一次粘贴多张，也可以拖入图片或点击选择文件
                   </div>
                   <div className="mt-2 inline-flex items-center gap-1 text-[11px] text-[var(--primary)]">
                     <ImagePlus className="h-3 w-3" />
@@ -332,26 +390,12 @@ export function AddTaskDialog(): React.JSX.Element | null {
                     {images.map((image, index) => (
                       <div
                         key={`${image.dataUrl.slice(0, 48)}-${index}`}
-                        className={cn(
-                          'group relative aspect-[4/3] overflow-hidden rounded-xl border bg-[var(--surface-soft)]',
-                          index === primaryIndex
-                            ? 'border-[var(--primary)] ring-2 ring-[var(--primary)]/25'
-                            : 'border-[var(--border)]'
-                        )}
+                        className="group relative aspect-[4/3] overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--surface-soft)]"
                       >
-                        <button
-                          type="button"
-                          className="h-full w-full"
-                          onClick={() => setPrimaryIndex(index)}
-                          title="设为 AI 识别图"
-                        >
-                          <img src={image.dataUrl} alt="" className="h-full w-full object-cover" />
-                        </button>
-                        {index === primaryIndex ? (
-                          <span className="absolute left-1.5 top-1.5 rounded-full bg-[var(--primary)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--primary-fg)]">
-                            AI 识别图
-                          </span>
-                        ) : null}
+                        <img src={image.dataUrl} alt="" className="h-full w-full object-cover" />
+                        <span className="absolute left-1.5 top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-black/50 px-1 text-[9px] font-semibold text-white">
+                          {index + 1}
+                        </span>
                         <button
                           type="button"
                           className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-md bg-black/45 text-white/85 opacity-0 transition-opacity hover:bg-black/65 group-hover:opacity-100"
@@ -370,17 +414,17 @@ export function AddTaskDialog(): React.JSX.Element | null {
                 {images.length > 0 ? (
                   <div className="mt-2 flex items-center justify-between">
                     <span className="text-[11px] text-[var(--muted)]">
-                      点击缩略图可切换 AI 识别图
+                      新增或删除截图后，会自动重新综合识别
                     </span>
                     <Button
                       size="xs"
                       variant="secondary"
                       loading={aiState === 'loading'}
-                      disabled={!primary || aiState === 'loading'}
-                      onClick={() => primary && void runAiForImage(primary.dataUrl)}
+                      disabled={images.length === 0 || aiState === 'loading'}
+                      onClick={retryAi}
                     >
                       <RefreshCw className="h-3 w-3" />
-                      重新识别
+                      重新识别全部
                     </Button>
                   </div>
                 ) : null}
@@ -397,7 +441,7 @@ export function AddTaskDialog(): React.JSX.Element | null {
             <div className="flex items-center justify-between gap-3">
               <p className="text-[11px] text-[var(--muted)]">
                 {settings?.hasApiKey
-                  ? 'AI 结果只作为草稿，保存前请检查。'
+                  ? 'AI 会综合所有截图，结果只作为草稿，保存前请检查。'
                   : '还没有配置 AI Key，依然可以手动填写。'}
               </p>
               <div className="flex gap-2">

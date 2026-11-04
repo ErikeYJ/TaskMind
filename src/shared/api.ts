@@ -83,7 +83,7 @@ export interface TaskmindApi {
     deleteScreenshot(id: string): Promise<void>
   }
   ai: {
-    extract(imageDataUrl: string): Promise<AiExtractionResult>
+    extract(imageDataUrls: string[]): Promise<AiExtractionResult>
     testConnection(): Promise<AiConnectionResult>
     setApiKey(key: string): Promise<{ ok: boolean; message: string }>
   }
