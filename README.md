@@ -26,6 +26,10 @@
 </p>
 
 <p align="center">
+  <img src="docs/screenshots/search.jpg" width="64%" />
+</p>
+
+<p align="center">
   <img src="docs/screenshots/ai-extract.jpg" width="49%" />
   <img src="docs/screenshots/floating-ball.jpg" width="49%" />
 </p>
