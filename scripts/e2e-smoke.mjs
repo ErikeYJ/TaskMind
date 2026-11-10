@@ -223,6 +223,11 @@ async function main() {
       { timeout: 90_000 }
     )
 
+    log('editing the title before adding a second screenshot')
+    const manualTitle = 'E2E 手改标题'
+    await aiDialog.locator('#task-title').fill(manualTitle)
+    await mainPage.waitForTimeout(200)
+
     log('adding a second screenshot to the same task')
     setClipboardImage(secondImagePath)
     await new Promise((resolveWait) => setTimeout(resolveWait, 350))
@@ -239,9 +244,21 @@ async function main() {
       undefined,
       { timeout: 120_000 }
     )
+    const preservedTitle = await aiDialog.locator('#task-title').inputValue()
+    log(`title after re-recognition: ${preservedTitle}`)
+    assert.equal(preservedTitle, manualTitle, 'AI overwrote the manually edited title')
+    const overrideButton = aiDialog.getByRole('button', { name: '覆盖手改字段' })
+    await overrideButton.waitFor({ timeout: 10_000 })
+    await mainPage.waitForTimeout(200)
+    await mainPage.screenshot({ path: join(artifacts, '06-ai-manual-preserved.png') })
+
+    log('applying the AI result explicitly over the manual title')
+    await overrideButton.click()
+    await overrideButton.waitFor({ state: 'hidden', timeout: 10_000 })
     const aiTitle = await aiDialog.locator('#task-title').inputValue()
-    log(`AI combined title: ${aiTitle}`)
+    log(`AI title after explicit override: ${aiTitle}`)
     assert.ok(aiTitle.length > 2, 'AI did not fill a title')
+    assert.notEqual(aiTitle, manualTitle, 'explicit override did not apply the AI title')
     await mainPage.waitForTimeout(300)
     await mainPage.screenshot({ path: join(artifacts, '06-ai-filled.png') })
     await aiDialog.getByRole('button', { name: '添加任务' }).click()

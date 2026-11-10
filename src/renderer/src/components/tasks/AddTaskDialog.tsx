@@ -11,9 +11,18 @@ import {
   X
 } from 'lucide-react'
 import * as DialogPrimitive from '@radix-ui/react-dialog'
+import {
+  AI_FIELD_LABELS,
+  AI_FORM_FIELDS,
+  applyAiOverride,
+  isAiFormField,
+  mergeAiIntoForm,
+  type AiEditedFields,
+  type AiFormField
+} from '@shared/aiDraft'
 import { getTodayString } from '@shared/date'
 import { defaultViewForTask } from '@shared/status'
-import type { CreateTaskInput } from '@shared/types'
+import type { AiTaskExtraction, CreateTaskInput } from '@shared/types'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useTaskStore } from '../../stores/taskStore'
 import { toastError, toastSuccess } from '../../stores/toastStore'
@@ -44,12 +53,15 @@ export function AddTaskDialog(): React.JSX.Element | null {
   const [images, setImages] = useState<AddImage[]>([])
   const [aiState, setAiState] = useState<AiState>('idle')
   const [aiError, setAiError] = useState<string | null>(null)
+  const [aiSkippedFields, setAiSkippedFields] = useState<AiFormField[]>([])
+  const [pendingAi, setPendingAi] = useState<AiTaskExtraction | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [dragging, setDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const didInitRef = useRef(false)
   const imagesRef = useRef<AddImage[]>([])
+  const userEditedFields = useRef<AiEditedFields>({})
   const aiTimer = useRef<number | null>(null)
   const aiGeneration = useRef(0)
 
@@ -72,8 +84,14 @@ export function AddTaskDialog(): React.JSX.Element | null {
     if (nextImages.length === 0) {
       setAiState('idle')
       setAiError(null)
+      setAiSkippedFields([])
+      setPendingAi(null)
       return
     }
+
+    setAiSkippedFields([])
+    setPendingAi(null)
+
     if (!useSettingsStore.getState().settings?.hasApiKey) {
       setAiState('error')
       setAiError('还没有配置 AI Key。请先到设置里填写 Key，再回来重新识别；也可以直接手动填写。')
@@ -92,15 +110,11 @@ export function AddTaskDialog(): React.JSX.Element | null {
         setAiError(result.error.message)
         return
       }
-      setForm((current) => ({
-        ...current,
-        title: result.data.title || current.title,
-        client: result.data.client ?? current.client,
-        content: result.data.content || current.content,
-        notes: result.data.notes || current.notes,
-        dueDate: result.data.dueDate ?? current.dueDate,
-        dueTime: result.data.dueTime ?? current.dueTime
-      }))
+
+      const editedSnapshot = { ...userEditedFields.current }
+      setForm((current) => mergeAiIntoForm(current, result.data, editedSnapshot).next)
+      setAiSkippedFields(AI_FORM_FIELDS.filter((field) => Boolean(editedSnapshot[field])))
+      setPendingAi(result.data)
       setAiState('done')
     } catch (err) {
       if (generation !== aiGeneration.current) return
@@ -116,12 +130,33 @@ export function AddTaskDialog(): React.JSX.Element | null {
     if (nextImages.length === 0) {
       setAiState('idle')
       setAiError(null)
+      setAiSkippedFields([])
+      setPendingAi(null)
       return
     }
     aiTimer.current = window.setTimeout(() => {
       aiTimer.current = null
       void runAiForImages(nextImages, generation)
     }, delay)
+  }
+
+  const handleFormChange = (patch: Partial<TaskFormValue>): void => {
+    const edited = Object.keys(patch).filter(isAiFormField)
+    if (edited.length > 0) {
+      const next = { ...userEditedFields.current }
+      for (const field of edited) next[field] = true
+      userEditedFields.current = next
+    }
+    setForm((current) => ({ ...current, ...patch }))
+  }
+
+  const applyPendingAi = (): void => {
+    if (!pendingAi) return
+    const data = pendingAi
+    setForm((current) => applyAiOverride(current, data))
+    userEditedFields.current = {}
+    setAiSkippedFields([])
+    setPendingAi(null)
   }
 
   const replaceImages = (nextImages: AddImage[]): void => {
@@ -164,8 +199,11 @@ export function AddTaskDialog(): React.JSX.Element | null {
     })
     setImages([])
     imagesRef.current = []
+    userEditedFields.current = {}
     setAiState('idle')
     setAiError(null)
+    setAiSkippedFields([])
+    setPendingAi(null)
     setError(null)
     setSaving(false)
     if (initialImages.length > 0) {
@@ -250,7 +288,7 @@ export function AddTaskDialog(): React.JSX.Element | null {
         <div className="flex items-start gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-2.5 text-xs text-[var(--muted)]">
           <Loader2 className="mt-0.5 h-3.5 w-3.5 animate-spin text-[var(--primary)]" />
           <span>
-            AI 正在综合分析 {images.length} 张截图，你可以先检查或手动修改左侧内容。
+            AI 正在综合分析 {images.length} 张截图；你手动改过的字段会保留。
           </span>
         </div>
       )
@@ -258,10 +296,27 @@ export function AddTaskDialog(): React.JSX.Element | null {
     if (aiState === 'done') {
       return (
         <div className="flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-300">
-          <Sparkles className="mt-0.5 h-3.5 w-3.5" />
-          <span>
-            AI 已结合 {images.length} 张截图填写标题、内容和备注，请检查后再添加。
-          </span>
+          <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <span>
+              AI 已结合 {images.length} 张截图填写，请检查后再添加。
+            </span>
+            {aiSkippedFields.length > 0 && pendingAi ? (
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="text-[11px] text-emerald-700/80 dark:text-emerald-300/80">
+                  已保留手改字段：{aiSkippedFields.map((field) => AI_FIELD_LABELS[field]).join('、')}
+                </span>
+                <button
+                  type="button"
+                  className="rounded-md bg-white/70 px-2 py-0.5 text-[11px] font-medium underline-offset-2 transition-colors hover:bg-white hover:underline dark:bg-black/20 dark:hover:bg-black/30"
+                  onClick={applyPendingAi}
+                  title="用本次 AI 结果覆盖你手动修改的字段"
+                >
+                  覆盖手改字段
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
       )
     }
@@ -287,13 +342,13 @@ export function AddTaskDialog(): React.JSX.Element | null {
     if (images.length === 0) {
       return (
         <div className="rounded-xl border border-dashed border-[var(--border-strong)] bg-[var(--surface-soft)] px-3 py-2.5 text-xs leading-5 text-[var(--muted)]">
-          先粘贴一张或多张微信截图。AI 会综合所有截图识别任务名称、内容、时间，并写好备注；识别不准的部分都可以手动改。
+          先粘贴一张或多张微信截图。AI 会综合所有截图识别任务名称、内容、时间，并写好备注；你手动修改过的字段不会被后续识别覆盖。
         </div>
       )
     }
     return (
       <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] px-3 py-2.5 text-xs text-[var(--muted)]">
-        已附加 {images.length} 张截图，AI 会综合识别全部内容。
+        已附加 {images.length} 张截图，AI 会综合识别全部内容，并保留你的手动修改。
       </div>
     )
   }
@@ -329,7 +384,7 @@ export function AddTaskDialog(): React.JSX.Element | null {
               <div className="min-w-0">
                 <TaskFields
                   value={form}
-                  onChange={(patch) => setForm((current) => ({ ...current, ...patch }))}
+                  onChange={handleFormChange}
                   disabled={saving}
                   autoFocus
                 />
