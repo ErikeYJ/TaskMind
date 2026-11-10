@@ -129,6 +129,37 @@ export class TaskRepository {
     return this.withScreenshots(rows)
   }
 
+  search(query: string, limit = 50): Task[] {
+    const escaped = query.replace(/[!%_]/g, (match) => `!${match}`)
+    const pattern = `%${escaped}%`
+    const prefix = `${escaped}%`
+    const safeLimit = Math.min(100, Math.max(1, Math.trunc(limit)))
+    const rows = this.db
+      .prepare(
+        `SELECT t.* FROM tasks t
+         LEFT JOIN projects p ON p.id = t.project_id
+         WHERE t.title LIKE @pattern ESCAPE '!'
+            OR t.client LIKE @pattern ESCAPE '!'
+            OR t.content LIKE @pattern ESCAPE '!'
+            OR t.notes LIKE @pattern ESCAPE '!'
+            OR p.name LIKE @pattern ESCAPE '!'
+         ORDER BY
+           CASE
+             WHEN t.title = @query COLLATE NOCASE THEN 0
+             WHEN t.title LIKE @prefix ESCAPE '!' THEN 1
+             WHEN t.title LIKE @pattern ESCAPE '!' THEN 2
+             WHEN p.name LIKE @pattern ESCAPE '!' THEN 3
+             WHEN t.client LIKE @pattern ESCAPE '!' THEN 4
+             ELSE 5
+           END,
+           CASE WHEN t.status = 'done' THEN 1 ELSE 0 END,
+           t.updated_at DESC
+         LIMIT @limit`
+      )
+      .all({ pattern, prefix, query, limit: safeLimit }) as TaskRow[]
+    return this.withScreenshots(rows)
+  }
+
   counts(today: string, projectId: string | null = null): TaskCounts {
     const projectClause = projectId ? ' WHERE project_id = @projectId' : ''
     const params: Record<string, unknown> = projectId ? { today, projectId } : { today }

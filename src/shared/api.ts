@@ -23,6 +23,7 @@ import type {
 export const IPC = {
   tasksList: 'tasks:list',
   tasksCounts: 'tasks:counts',
+  tasksSearch: 'tasks:search',
   projectsList: 'projects:list',
   projectsCreate: 'projects:create',
   projectsUpdate: 'projects:update',
@@ -82,6 +83,7 @@ export interface TaskmindApi {
   tasks: {
     list(view: TaskView, projectId?: string | null): Promise<Task[]>
     counts(projectId?: string | null): Promise<TaskCounts>
+    search(query: string): Promise<Task[]>
     get(id: string): Promise<Task | null>
     create(input: CreateTaskInput): Promise<Task>
     update(id: string, patch: UpdateTaskInput): Promise<Task>

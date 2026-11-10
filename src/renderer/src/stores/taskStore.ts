@@ -22,6 +22,7 @@ interface TaskState {
   addOpen: boolean
   addInitialImages: string[]
   settingsOpen: boolean
+  searchOpen: boolean
   projects: Project[]
   projectsLoading: boolean
   projectsError: string | null
@@ -40,6 +41,8 @@ interface TaskState {
   closeAdd: () => void
   openSettings: () => void
   closeSettings: () => void
+  openSearch: () => void
+  closeSearch: () => void
   openProjectEditor: (project?: Project | null) => void
   closeProjectEditor: () => void
   setDetailTask: (task: Task | null) => void
@@ -59,6 +62,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   addOpen: false,
   addInitialImages: [],
   settingsOpen: false,
+  searchOpen: false,
   projects: [],
   projectsLoading: true,
   projectsError: null,
@@ -247,6 +251,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       loading: true,
       detailTask: task,
       detailOpen: true,
+      searchOpen: false,
       error: null
     })
     try {
@@ -267,18 +272,22 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       detailOpen: false,
       detailTask: null,
       settingsOpen: false,
+      searchOpen: false,
       projectEditorOpen: false,
       addOpen: true,
       addInitialImages: images
     }),
   closeAdd: () => set({ addOpen: false, addInitialImages: [] }),
-  openSettings: () => set({ settingsOpen: true }),
+  openSettings: () => set({ settingsOpen: true, searchOpen: false }),
   closeSettings: () => set({ settingsOpen: false }),
+  openSearch: () => set({ searchOpen: true }),
+  closeSearch: () => set({ searchOpen: false }),
   openProjectEditor: (project = null) =>
     set({
       projectEditorOpen: true,
       editingProject: project,
-      settingsOpen: false
+      settingsOpen: false,
+      searchOpen: false
     }),
   closeProjectEditor: () => set({ projectEditorOpen: false, editingProject: null }),
   setDetailTask: (task) => set({ detailTask: task })

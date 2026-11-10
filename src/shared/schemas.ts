@@ -42,6 +42,12 @@ export const taskIdSchema = z.object({
   id: z.string().min(1).max(100)
 })
 
+export const searchTasksSchema = z
+  .object({
+    query: z.string().trim().min(1).max(100)
+  })
+  .strict()
+
 export const createProjectInputSchema = z
   .object({
     name: z.string().trim().min(1, '项目名称不能为空').max(60),

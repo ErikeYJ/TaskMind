@@ -86,6 +86,12 @@ export class TaskService {
     return this.repository.counts(getTodayString(), projectId)
   }
 
+  search(query: string): Task[] {
+    const trimmed = query.trim()
+    if (!trimmed) return []
+    return this.repository.search(trimmed, 50)
+  }
+
   private normalizeProjectId(projectId: string | null | undefined): string | null {
     const id = typeof projectId === 'string' && projectId.trim() ? projectId.trim() : null
     if (!id) return null

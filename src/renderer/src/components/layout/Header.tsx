@@ -1,4 +1,4 @@
-import { Plus, Settings2, Sparkles, X } from 'lucide-react'
+import { Plus, Search, Settings2, Sparkles, X } from 'lucide-react'
 import { VIEW_LABELS, VIEW_SUBTITLES } from '@shared/constants'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useTaskStore } from '../../stores/taskStore'
@@ -9,6 +9,7 @@ export function Header(): React.JSX.Element {
   const counts = useTaskStore((state) => state.counts)
   const openAdd = useTaskStore((state) => state.openAdd)
   const openSettings = useTaskStore((state) => state.openSettings)
+  const openSearch = useTaskStore((state) => state.openSearch)
   const projects = useTaskStore((state) => state.projects)
   const projectFilterId = useTaskStore((state) => state.projectFilterId)
   const setProjectFilter = useTaskStore((state) => state.setProjectFilter)
@@ -62,6 +63,15 @@ export function Header(): React.JSX.Element {
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={openSearch}
+            title="搜索任务 (Ctrl+K)"
+            aria-label="搜索任务"
+          >
+            <Search className="h-4 w-4" />
+          </Button>
           <Button
             variant="primary"
             size="md"

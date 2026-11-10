@@ -11,6 +11,7 @@ import {
   projectIdFilterSchema,
   projectIdSchema,
   screenshotIdSchema,
+  searchTasksSchema,
   settingsPatchSchema,
   taskActionSchema,
   taskIdSchema,
@@ -64,6 +65,10 @@ export function registerIpc(context: IpcContext): void {
 
   handle(IPC.tasksCounts, (_event, projectId) => {
     return tasks.counts(projectIdFilterSchema.parse(projectId) ?? null)
+  })
+
+  handle(IPC.tasksSearch, (_event, query) => {
+    return tasks.search(searchTasksSchema.parse({ query }).query)
   })
 
   handle(IPC.projectsList, () => projects.list())

@@ -269,12 +269,18 @@ async function main() {
 
     await dismissToasts(mainPage)
 
+    log('testing global search with Ctrl+K')
+    await mainPage.keyboard.press('Control+K')
+    const searchDialog = mainPage.getByRole('dialog').filter({ hasText: '搜索全部任务' })
+    await searchDialog.waitFor({ timeout: 10_000 })
+    await searchDialog.locator('#global-search').fill('2468')
+    await searchDialog.getByText(aiTitle, { exact: false }).first().waitFor({ timeout: 10_000 })
+    await mainPage.waitForTimeout(200)
+    await mainPage.screenshot({ path: join(artifacts, '06a-global-search.png') })
+    await mainPage.keyboard.press('Enter')
+    await searchDialog.waitFor({ state: 'hidden', timeout: 10_000 })
+
     log('opening AI task detail and screenshot lightbox')
-    const aiCard = mainPage
-      .locator('div[role="button"]')
-      .filter({ hasText: aiTitle })
-      .first()
-    await aiCard.click()
     const aiDetail = mainPage.getByRole('dialog').filter({ hasText: aiTitle })
     await aiDetail.waitFor({ timeout: 10_000 })
     await mainPage.waitForTimeout(300)
