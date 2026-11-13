@@ -61,6 +61,14 @@ export class ProjectRepository {
     return row ? mapProject(row) : null
   }
 
+  getRow(id: string): ProjectRow | null {
+    return (
+      (this.db.prepare('SELECT * FROM projects WHERE id = ?').get(id) as
+        | ProjectRow
+        | undefined) ?? null
+    )
+  }
+
   exists(id: string): boolean {
     const row = this.db.prepare('SELECT 1 AS found FROM projects WHERE id = ?').get(id) as
       | { found: number }

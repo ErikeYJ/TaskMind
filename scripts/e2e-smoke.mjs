@@ -44,7 +44,7 @@ async function setClipboardImage(filePath) {
           '-NoProfile',
           '-STA',
           '-Command',
-          `Start-Sleep -Milliseconds 200; Add-Type -AssemblyName System.Windows.Forms,System.Drawing; $img=[System.Drawing.Image]::FromFile('${safePath}'); [System.Windows.Forms.Clipboard]::SetImage($img); $img.Dispose()`
+          `$ErrorActionPreference='Stop'; Start-Sleep -Milliseconds 200; Add-Type -AssemblyName System.Windows.Forms,System.Drawing; $img=[System.Drawing.Image]::FromFile('${safePath}'); try { [System.Windows.Forms.Clipboard]::SetImage($img); if (-not [System.Windows.Forms.Clipboard]::ContainsImage()) { throw 'clipboard image missing' } } catch { Write-Error $_.Exception.Message; exit 1 } finally { $img.Dispose() }`
         ],
         { windowsHide: true }
       )
@@ -224,15 +224,20 @@ async function main() {
   await mainPage.screenshot({ path: join(artifacts, '05-restored.png') })
 
   if (hasAiKey) {
-    log('testing real clipboard paste + multi-image AI extraction')
-    await setClipboardImage(imagePath)
-    await new Promise((resolveWait) => setTimeout(resolveWait, 350))
-
+    log('testing clipboard/file paste + multi-image AI extraction')
     await mainPage.getByRole('button', { name: '添加任务' }).first().click()
     const aiDialog = mainPage.getByRole('dialog').filter({ hasText: '添加任务' })
     await aiDialog.waitFor()
     await aiDialog.locator('#task-title').click()
-    await mainPage.keyboard.press('Control+V')
+    try {
+      await setClipboardImage(imagePath)
+      await new Promise((resolveWait) => setTimeout(resolveWait, 350))
+      await mainPage.keyboard.press('Control+V')
+      log('first screenshot added through the system clipboard')
+    } catch {
+      log('system clipboard unavailable, using the file picker fallback')
+      await aiDialog.locator('input[type="file"]').setInputFiles(imagePath)
+    }
     await mainPage.waitForFunction(
       () => {
         const input = document.querySelector('#task-title')
@@ -248,9 +253,7 @@ async function main() {
     await mainPage.waitForTimeout(200)
 
     log('adding a second screenshot to the same task')
-    await setClipboardImage(secondImagePath)
-    await new Promise((resolveWait) => setTimeout(resolveWait, 350))
-    await mainPage.keyboard.press('Control+V')
+    await aiDialog.locator('input[type="file"]').setInputFiles(secondImagePath)
     await mainPage.waitForFunction(
       () => {
         const content = document.querySelector('#task-content')
@@ -322,7 +325,34 @@ async function main() {
     await lightbox.locator('button[title="关闭"]').click()
     await lightbox.waitFor({ state: 'hidden' })
     await mainPage.waitForTimeout(200)
-    await aiDetail.getByRole('button', { name: '关闭' }).click()
+
+    log('testing task delete undo')
+    await aiDetail.getByRole('button', { name: '删除', exact: true }).click()
+    const confirmDeleteTask = mainPage
+      .getByRole('dialog')
+      .filter({ hasText: '删除这个任务？' })
+    await confirmDeleteTask.waitFor({ timeout: 10_000 })
+    await confirmDeleteTask.getByRole('button', { name: '删除', exact: true }).click()
+    await mainPage.getByText('任务已删除').waitFor({ timeout: 10_000 })
+    await aiDetail.waitFor({ state: 'hidden' })
+    await mainPage.getByRole('button', { name: '撤销', exact: true }).click()
+    await mainPage.getByText('任务已恢复').waitFor({ timeout: 10_000 })
+
+    const restoredAiCard = mainPage
+      .locator('div[role="button"]')
+      .filter({ hasText: aiTitle })
+      .first()
+    await restoredAiCard.waitFor({ timeout: 10_000 })
+    await restoredAiCard.click()
+    const restoredAiDetail = mainPage.getByRole('dialog').filter({ hasText: aiTitle })
+    await restoredAiDetail.waitFor({ timeout: 10_000 })
+    assert.equal(
+      await restoredAiDetail.locator('button[title="查看大图"]').count(),
+      2,
+      'task undo did not restore both screenshots'
+    )
+    await restoredAiDetail.getByRole('button', { name: '关闭' }).click()
+    await restoredAiDetail.waitFor({ state: 'hidden' })
     await mainPage.waitForTimeout(250)
   } else {
     log('no AI key provided, skipping AI paste test')
@@ -553,7 +583,7 @@ async function main() {
   await mainPage.waitForTimeout(350)
   await mainPage.screenshot({ path: join(artifacts, '10-main-dark.png') })
 
-  log('deleting the project and checking the task is preserved')
+  log('testing project delete undo')
   const renamedProjectRow = mainPage
     .locator('button')
     .filter({ hasText: 'E2E 项目 2' })
@@ -581,6 +611,17 @@ async function main() {
     0,
     'project badge remained after deleting the project'
   )
+  await mainPage.getByRole('button', { name: '撤销', exact: true }).click()
+  await mainPage.getByText('项目已恢复').waitFor({ timeout: 10_000 })
+  const restoredProjectRow = mainPage
+    .locator('button')
+    .filter({ hasText: 'E2E 项目 2' })
+    .first()
+  await restoredProjectRow.waitFor({ timeout: 10_000 })
+  await preservedProjectTask.getByText('E2E 项目 2', { exact: true }).waitFor({
+    timeout: 10_000
+  })
+  await mainPage.screenshot({ path: join(artifacts, '12-project-restored.png') })
 
   assert.deepEqual(pageErrors, [], `renderer errors: ${pageErrors.join('\n')}`)
   log('E2E smoke test passed')

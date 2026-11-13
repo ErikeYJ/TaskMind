@@ -8,6 +8,7 @@ import type {
   BallTopTask,
   CreateProjectInput,
   CreateTaskInput,
+  DeleteUndoResult,
   ImportResult,
   Project,
   ScreenshotInput,
@@ -16,6 +17,7 @@ import type {
   TaskAction,
   TaskCounts,
   TaskView,
+  UndoResult,
   UpdateProjectInput,
   UpdateTaskInput
 } from './types'
@@ -54,6 +56,7 @@ export const IPC = {
   backupImport: 'backup:import',
   backupRunAuto: 'backup:runAuto',
   backupOpenDir: 'backup:openDir',
+  undoRestore: 'undo:restore',
   appGetInfo: 'app:getInfo',
   appOpenDataDir: 'app:openDataDir',
   appQuit: 'app:quit',
@@ -90,7 +93,7 @@ export interface TaskmindApi {
     create(input: CreateTaskInput): Promise<Task>
     update(id: string, patch: UpdateTaskInput): Promise<Task>
     transition(id: string, action: TaskAction): Promise<Task>
-    delete(id: string): Promise<void>
+    delete(id: string): Promise<DeleteUndoResult>
     addScreenshot(taskId: string, input: ScreenshotInput): Promise<ScreenshotMeta>
     deleteScreenshot(id: string): Promise<void>
   }
@@ -98,7 +101,10 @@ export interface TaskmindApi {
     list(): Promise<Project[]>
     create(input: CreateProjectInput): Promise<Project>
     update(id: string, patch: UpdateProjectInput): Promise<Project>
-    delete(id: string): Promise<void>
+    delete(id: string): Promise<DeleteUndoResult>
+  }
+  undo: {
+    restore(token: string): Promise<UndoResult>
   }
   ai: {
     extract(imageDataUrls: string[]): Promise<AiExtractionResult>

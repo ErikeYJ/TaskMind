@@ -1,6 +1,6 @@
 import { ACTION_LABELS } from '@shared/constants'
 import type { Task, TaskAction, UpdateTaskInput } from '@shared/types'
-import { toastError, toastSuccess } from '../stores/toastStore'
+import { toastError, toastSuccess, toastUndo } from '../stores/toastStore'
 import { useTaskStore } from '../stores/taskStore'
 import { getErrorMessage } from './utils'
 
@@ -18,10 +18,31 @@ export async function runTaskAction(id: string, action: TaskAction): Promise<boo
 
 export async function deleteTask(id: string): Promise<boolean> {
   try {
-    await window.taskmind.tasks.delete(id)
+    const result = await window.taskmind.tasks.delete(id)
+    if (!result.ok) {
+      toastError(result.message || '删除任务失败')
+      return false
+    }
     useTaskStore.getState().closeDetail()
     await useTaskStore.getState().refreshAfterChange()
-    toastSuccess('任务已删除')
+    if (!result.undoToken) {
+      toastSuccess('任务已删除')
+      return true
+    }
+    const token = result.undoToken
+    toastUndo('任务已删除', async () => {
+      try {
+        const undo = await window.taskmind.undo.restore(token)
+        if (!undo.ok) {
+          toastError(undo.message)
+          return
+        }
+        await useTaskStore.getState().refreshAfterChange()
+        toastSuccess(undo.message)
+      } catch (error) {
+        toastError(getErrorMessage(error, '撤销删除任务失败'))
+      }
+    })
     return true
   } catch (error) {
     toastError(getErrorMessage(error, '删除任务失败'))

@@ -66,6 +66,10 @@ export const projectIdSchema = z.object({
   id: z.string().min(1).max(100)
 })
 
+export const undoTokenSchema = z.object({
+  token: z.string().min(1).max(100)
+})
+
 export const transitionTaskSchema = z.object({
   id: z.string().min(1).max(100),
   action: taskActionSchema

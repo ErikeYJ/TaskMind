@@ -152,6 +152,17 @@ export interface BackupResult {
   message: string
 }
 
+export interface DeleteUndoResult {
+  ok: boolean
+  undoToken?: string
+  message?: string
+}
+
+export interface UndoResult {
+  ok: boolean
+  message: string
+}
+
 export interface ImportResult {
   ok: boolean
   message: string

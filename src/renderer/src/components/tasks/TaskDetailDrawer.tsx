@@ -457,7 +457,7 @@ export function TaskDetailDrawer(): React.JSX.Element {
       <ConfirmDialog
         open={confirmDelete}
         title="删除这个任务？"
-        description="任务内容和所有截图会一起删除，且无法恢复。"
+        description="任务内容和所有截图会一起删除，删除后 10 秒内可以撤销。"
         confirmLabel="删除"
         danger
         onOpenChange={setConfirmDelete}

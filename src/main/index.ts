@@ -13,6 +13,7 @@ import { ProjectService } from './services/projectService'
 import { ReminderService } from './services/reminderService'
 import { SettingsService } from './services/settingsService'
 import { TaskService } from './services/taskService'
+import { UndoService } from './services/undoService'
 import { TrayService } from './services/trayService'
 import { BallWindowManager } from './windows/ballWindow'
 import { MainWindowManager } from './windows/mainWindow'
@@ -44,6 +45,7 @@ let ballWindow: BallWindowManager | null = null
 let tray: TrayService | null = null
 let reminders: ReminderService | null = null
 let backup: BackupService | null = null
+let undo: UndoService | null = null
 let isQuitting = false
 
 function quitApp(): void {
@@ -51,6 +53,7 @@ function quitApp(): void {
   mainWindow?.setQuitting(true)
   reminders?.stop()
   backup?.stopAutoBackups()
+  void undo?.dispose()
   app.quit()
 }
 
@@ -125,6 +128,8 @@ async function bootstrap(): Promise<void> {
   media = new MediaService(userDataDir)
   tasks = new TaskService(db, media)
   const projects = new ProjectService(db)
+  const undoService = new UndoService(tasks, projects)
+  undo = undoService
   const ai = new AiService(settings, media)
 
   await registerMediaProtocol()
@@ -209,6 +214,7 @@ async function bootstrap(): Promise<void> {
     ballWindow,
     reminders,
     backup: backupService,
+    undo: undoService,
     onQuit: quitApp
   })
 
@@ -242,6 +248,8 @@ if (!gotTheLock) {
     isQuitting = true
     mainWindow?.setQuitting(true)
     reminders?.stop()
+    backup?.stopAutoBackups()
+    void undo?.dispose()
     mainWindow?.saveStateNow()
   })
 

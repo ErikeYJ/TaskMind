@@ -55,6 +55,9 @@ const api: TaskmindApi = {
     update: (id, patch) => invoke(IPC.projectsUpdate, id, patch),
     delete: (id) => invoke(IPC.projectsDelete, id)
   },
+  undo: {
+    restore: (token) => invoke(IPC.undoRestore, token)
+  },
   ai: {
     extract: (imageDataUrls) => invoke(IPC.aiExtract, imageDataUrls),
     testConnection: () => invoke(IPC.aiTestConnection),

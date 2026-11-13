@@ -178,9 +178,16 @@ export class TaskRepository {
   }
 
   get(id: string): Task | null {
-    const row = this.db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) as TaskRow | undefined
+    const row = this.getRow(id)
     if (!row) return null
     return this.withScreenshots([row])[0] ?? null
+  }
+
+  getRow(id: string): TaskRow | null {
+    return (
+      (this.db.prepare('SELECT * FROM tasks WHERE id = ?').get(id) as TaskRow | undefined) ??
+      null
+    )
   }
 
   insert(row: TaskRow): void {

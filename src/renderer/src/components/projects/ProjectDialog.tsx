@@ -3,7 +3,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { Check, FolderPlus, Trash2, X } from 'lucide-react'
 import { DEFAULT_PROJECT_COLOR, PROJECT_COLORS } from '@shared/projects'
 import { useTaskStore } from '../../stores/taskStore'
-import { toastError, toastSuccess } from '../../stores/toastStore'
+import { toastError, toastSuccess, toastUndo } from '../../stores/toastStore'
 import { getErrorMessage } from '../../lib/utils'
 import { Button } from '../ui/Button'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
@@ -62,12 +62,34 @@ export function ProjectDialog(): React.JSX.Element {
     setDeleting(true)
     setError(null)
     try {
-      await window.taskmind.projects.delete(editing.id)
+      const result = await window.taskmind.projects.delete(editing.id)
+      if (!result.ok) {
+        setError(result.message || '删除项目失败')
+        return
+      }
       setConfirmDelete(false)
       closeProjectEditor()
       await loadProjects()
       await refreshAfterChange()
-      toastSuccess('项目已删除，任务已保留')
+      if (!result.undoToken) {
+        toastSuccess('项目已删除，任务已保留')
+        return
+      }
+      const token = result.undoToken
+      toastUndo('项目已删除，任务已保留', async () => {
+        try {
+          const undo = await window.taskmind.undo.restore(token)
+          if (!undo.ok) {
+            toastError(undo.message)
+            return
+          }
+          await useTaskStore.getState().loadProjects()
+          await useTaskStore.getState().refreshAfterChange()
+          toastSuccess(undo.message)
+        } catch (err) {
+          toastError(getErrorMessage(err, '撤销删除项目失败'))
+        }
+      })
     } catch (err) {
       setError(getErrorMessage(err, '删除项目失败'))
     } finally {
@@ -210,8 +232,8 @@ export function ProjectDialog(): React.JSX.Element {
         title="删除这个项目？"
         description={
           editing
-            ? `项目「${editing.name}」下的 ${editing.totalTaskCount} 个任务会保留，但不再关联这个项目。此操作无法撤销。`
-            : '项目下的任务会保留，但不再关联这个项目。'
+            ? `项目「${editing.name}」下的 ${editing.totalTaskCount} 个任务会保留，但不再关联这个项目。删除后 10 秒内可以撤销，超时后无法恢复。`
+            : '项目下的任务会保留，但不再关联这个项目。删除后 10 秒内可以撤销。'
         }
         confirmLabel="删除项目"
         danger

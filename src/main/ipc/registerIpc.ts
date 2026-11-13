@@ -17,6 +17,7 @@ import {
   taskIdSchema,
   taskViewSchema,
   transitionTaskSchema,
+  undoTokenSchema,
   updateProjectInputSchema,
   updateTaskInputSchema
 } from '../../shared/schemas'
@@ -28,6 +29,7 @@ import type { ProjectService } from '../services/projectService'
 import type { ReminderService } from '../services/reminderService'
 import type { SettingsService } from '../services/settingsService'
 import type { TaskService } from '../services/taskService'
+import type { UndoService } from '../services/undoService'
 import type { BallWindowManager } from '../windows/ballWindow'
 import type { MainWindowManager } from '../windows/mainWindow'
 
@@ -42,6 +44,7 @@ export interface IpcContext {
   ballWindow: BallWindowManager
   reminders: ReminderService
   backup: BackupService
+  undo: UndoService
   onQuit: () => void
 }
 
@@ -54,7 +57,7 @@ function handle(
 }
 
 export function registerIpc(context: IpcContext): void {
-  const { tasks, projects, ai, settings, ballWindow, mainWindow, reminders, backup } = context
+  const { tasks, projects, ai, settings, ballWindow, mainWindow, reminders, backup, undo } = context
 
   handle(IPC.tasksList, (_event, view, projectId) => {
     return tasks.list(
@@ -85,7 +88,7 @@ export function registerIpc(context: IpcContext): void {
   })
 
   handle(IPC.projectsDelete, (_event, id) => {
-    return projects.delete(projectIdSchema.shape.id.parse(id))
+    return undo.deleteProject(projectIdSchema.shape.id.parse(id))
   })
 
   handle(IPC.tasksGet, (_event, id) => {
@@ -107,7 +110,7 @@ export function registerIpc(context: IpcContext): void {
   })
 
   handle(IPC.tasksDelete, (_event, id) => {
-    return tasks.delete(taskIdSchema.shape.id.parse(id))
+    return undo.deleteTask(taskIdSchema.shape.id.parse(id))
   })
 
   handle(IPC.tasksAddScreenshot, (_event, taskId, input) => {
@@ -185,6 +188,10 @@ export function registerIpc(context: IpcContext): void {
   handle(IPC.backupRunAuto, () => backup.runAutoBackup('manual'))
 
   handle(IPC.backupOpenDir, () => backup.openAutoBackupDir())
+
+  handle(IPC.undoRestore, (_event, token) => {
+    return undo.undo(undoTokenSchema.parse({ token }).token)
+  })
 
   handle(IPC.appGetInfo, () => ({
     name: APP_NAME,

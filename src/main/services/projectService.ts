@@ -27,6 +27,11 @@ function isUniqueError(error: unknown): boolean {
   return error instanceof Error && error.message.includes('UNIQUE')
 }
 
+export interface DeletedProjectSnapshot {
+  project: ProjectRow
+  taskIds: string[]
+}
+
 export class ProjectService {
   private readonly repository: ProjectRepository
   private readonly listeners = new Set<() => void>()
@@ -99,6 +104,42 @@ export class ProjectService {
     if (!this.repository.exists(id)) return
     this.repository.delete(id)
     this.emitChanged()
+  }
+
+  deleteWithSnapshot(id: string): DeletedProjectSnapshot | null {
+    const row = this.repository.getRow(id)
+    if (!row) return null
+    const taskIds = (
+      this.db.prepare('SELECT id FROM tasks WHERE project_id = ?').all(id) as Array<{
+        id: string
+      }>
+    ).map((task) => task.id)
+    this.repository.delete(id)
+    this.emitChanged()
+    return { project: row, taskIds }
+  }
+
+  restoreDeleted(snapshot: DeletedProjectSnapshot): Project {
+    if (this.repository.exists(snapshot.project.id)) {
+      throw new Error('项目已经存在，无法撤销')
+    }
+    try {
+      const restore = this.db.transaction(() => {
+        this.repository.insert(snapshot.project)
+        const update = this.db.prepare('UPDATE tasks SET project_id = ? WHERE id = ?')
+        for (const taskId of snapshot.taskIds) {
+          update.run(snapshot.project.id, taskId)
+        }
+      })
+      restore()
+    } catch (error) {
+      if (isUniqueError(error)) throw new Error('项目名称已被占用，无法撤销')
+      throw error
+    }
+    const project = this.repository.get(snapshot.project.id)
+    if (!project) throw new Error('恢复项目失败')
+    this.emitChanged()
+    return project
   }
 
   exists(id: string): boolean {

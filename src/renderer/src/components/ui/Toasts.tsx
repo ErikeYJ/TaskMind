@@ -33,6 +33,19 @@ export function Toasts(): React.JSX.Element {
         >
           <span className="mt-0.5 shrink-0">{icons[toast.type]}</span>
           <span className="min-w-0 flex-1 leading-5">{toast.message}</span>
+          {toast.action ? (
+            <button
+              type="button"
+              className="mt-0.5 shrink-0 rounded-md px-1.5 py-0.5 text-xs font-semibold underline-offset-2 transition-colors hover:bg-black/5 hover:underline dark:hover:bg-white/10"
+              onClick={() => {
+                const action = toast.action
+                dismiss(toast.id)
+                if (action) void Promise.resolve(action.onClick()).catch(() => {})
+              }}
+            >
+              {toast.action.label}
+            </button>
+          ) : null}
           <button
             type="button"
             className="mt-0.5 shrink-0 rounded p-0.5 opacity-60 transition-opacity hover:opacity-100"

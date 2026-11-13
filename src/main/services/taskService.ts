@@ -26,6 +26,11 @@ export interface TaskMedia {
   deleteFiles(fileName: string, thumbName: string | null): Promise<void>
 }
 
+export interface DeletedTaskSnapshot {
+  task: TaskRow
+  screenshots: ScreenshotRow[]
+}
+
 function nowIso(): string {
   return new Date().toISOString()
 }
@@ -251,6 +256,46 @@ export class TaskService {
       screenshotRows.map((row) => this.media.deleteFiles(row.file_name, row.thumb_name))
     )
     this.emitChanged()
+  }
+
+  deleteWithSnapshot(id: string): DeletedTaskSnapshot | null {
+    const row = this.repository.getRow(id)
+    if (!row) return null
+    const screenshots = this.repository.listScreenshotsForTask(id)
+    this.repository.delete(id)
+    this.emitChanged()
+    return { task: row, screenshots }
+  }
+
+  restoreDeleted(snapshot: DeletedTaskSnapshot): Task {
+    if (this.repository.getRow(snapshot.task.id)) {
+      throw new Error('任务已经存在，无法撤销')
+    }
+    const projectId = snapshot.task.project_id
+    const projectExists =
+      projectId &&
+      Boolean(this.db.prepare('SELECT 1 AS found FROM projects WHERE id = ?').get(projectId))
+    const row: TaskRow = {
+      ...snapshot.task,
+      project_id: projectExists ? projectId : null
+    }
+    const restore = this.db.transaction(() => {
+      this.repository.insert(row)
+      for (const screenshot of snapshot.screenshots) {
+        this.repository.insertScreenshot(screenshot)
+      }
+    })
+    restore()
+    const task = this.repository.get(row.id)
+    if (!task) throw new Error('恢复任务失败')
+    this.emitChanged()
+    return task
+  }
+
+  async finalizeDeleted(snapshot: DeletedTaskSnapshot): Promise<void> {
+    await Promise.all(
+      snapshot.screenshots.map((row) => this.media.deleteFiles(row.file_name, row.thumb_name))
+    )
   }
 
   async addScreenshot(taskId: string, dataUrl: string): Promise<ScreenshotMeta> {
