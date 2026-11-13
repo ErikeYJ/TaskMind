@@ -29,6 +29,18 @@ export interface Project {
   updatedAt: string
 }
 
+export interface ProjectSuggestion {
+  projectId: string
+  reason: 'client' | 'content'
+}
+
+export interface SuggestProjectInput {
+  client?: string | null
+  title?: string
+  content?: string
+  notes?: string
+}
+
 export interface CreateProjectInput {
   name: string
   color: string

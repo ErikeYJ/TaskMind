@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { addDays, getDay, startOfDay } from 'date-fns'
-import { Sparkles, X } from 'lucide-react'
+import { Plus, Sparkles, X } from 'lucide-react'
 import { parseNaturalDate, toDateString } from '@shared/date'
 import type { Task } from '@shared/types'
 import { useTaskStore } from '../../stores/taskStore'
@@ -62,6 +62,7 @@ interface TaskFieldsProps {
   disabled?: boolean
   autoFocus?: boolean
   compact?: boolean
+  projectHint?: string | null
 }
 
 export function TaskFields({
@@ -69,11 +70,13 @@ export function TaskFields({
   onChange,
   disabled = false,
   autoFocus = false,
-  compact = false
+  compact = false,
+  projectHint = null
 }: TaskFieldsProps): React.JSX.Element {
   const [natural, setNatural] = useState('')
   const [hint, setHint] = useState<string | null>(null)
   const projects = useTaskStore((state) => state.projects)
+  const openProjectEditor = useTaskStore((state) => state.openProjectEditor)
   const selectedProject = projects.find((project) => project.id === value.projectId)
   const today = toDateString(new Date())
   const tomorrow = toDateString(addDays(new Date(), 1))
@@ -133,7 +136,7 @@ export function TaskFields({
           />
           <select
             id="task-project"
-            className={cn(inputClass, 'cursor-pointer')}
+            className={cn(inputClass, 'min-w-0 flex-1 cursor-pointer')}
             value={value.projectId}
             onChange={(event) => onChange({ projectId: event.target.value })}
             disabled={disabled || projects.length === 0}
@@ -145,11 +148,25 @@ export function TaskFields({
               </option>
             ))}
           </select>
+          <button
+            type="button"
+            className="inline-flex h-10 shrink-0 items-center gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] px-3 text-xs font-medium text-[var(--fg)] transition-colors hover:border-[var(--primary)] hover:text-[var(--primary)] disabled:opacity-50"
+            onClick={() =>
+              openProjectEditor(null, (project) => onChange({ projectId: project.id }))
+            }
+            disabled={disabled}
+            title="新建项目"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            新建项目
+          </button>
         </div>
         {projects.length === 0 ? (
           <p className="mt-1.5 text-[11px] text-[var(--muted)]">
-            可以在左侧项目列表新建项目后，再关联任务。
+            还没有项目，可以直接点「新建项目」创建并关联。
           </p>
+        ) : projectHint ? (
+          <p className="mt-1.5 text-[11px] text-[var(--primary)]">{projectHint}</p>
         ) : null}
       </div>
 

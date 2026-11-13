@@ -11,12 +11,14 @@ import type {
   DeleteUndoResult,
   ImportResult,
   Project,
+  ProjectSuggestion,
   ScreenshotInput,
   ScreenshotMeta,
   Task,
   TaskAction,
   TaskCounts,
   TaskView,
+  SuggestProjectInput,
   UndoResult,
   UpdateProjectInput,
   UpdateTaskInput
@@ -26,6 +28,7 @@ export const IPC = {
   tasksList: 'tasks:list',
   tasksCounts: 'tasks:counts',
   tasksSearch: 'tasks:search',
+  tasksSuggestProject: 'tasks:suggestProject',
   projectsList: 'projects:list',
   projectsCreate: 'projects:create',
   projectsUpdate: 'projects:update',
@@ -89,6 +92,7 @@ export interface TaskmindApi {
     list(view: TaskView, projectId?: string | null): Promise<Task[]>
     counts(projectId?: string | null): Promise<TaskCounts>
     search(query: string): Promise<Task[]>
+    suggestProject(input: SuggestProjectInput): Promise<ProjectSuggestion | null>
     get(id: string): Promise<Task | null>
     create(input: CreateTaskInput): Promise<Task>
     update(id: string, patch: UpdateTaskInput): Promise<Task>

@@ -42,13 +42,18 @@ export function ProjectDialog(): React.JSX.Element {
     setSaving(true)
     setError(null)
     try {
+      const created = editing
+        ? null
+        : await window.taskmind.projects.create({ name: trimmed, color })
       if (editing) {
         await window.taskmind.projects.update(editing.id, { name: trimmed, color })
-      } else {
-        await window.taskmind.projects.create({ name: trimmed, color })
       }
+      const onCreated = created
+        ? useTaskStore.getState().projectEditorOnCreated
+        : null
       await loadProjects()
       closeProjectEditor()
+      if (created) onCreated?.(created)
       toastSuccess(editing ? '项目已保存' : '项目已创建')
     } catch (err) {
       setError(getErrorMessage(err, '保存项目失败'))

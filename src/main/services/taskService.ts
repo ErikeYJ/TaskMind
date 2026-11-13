@@ -14,6 +14,8 @@ import type {
   ScreenshotMeta,
   Task,
   TaskAction,
+  ProjectSuggestion,
+  SuggestProjectInput,
   TaskCounts,
   TaskView,
   UpdateTaskInput
@@ -95,6 +97,62 @@ export class TaskService {
     const trimmed = query.trim()
     if (!trimmed) return []
     return this.repository.search(trimmed, 50)
+  }
+
+  suggestProject(input: SuggestProjectInput): ProjectSuggestion | null {
+    const client = input.client?.trim() ?? ''
+    if (client) {
+      const row = this.db
+        .prepare(
+          `SELECT t.project_id AS projectId
+           FROM tasks t
+           INNER JOIN projects p ON p.id = t.project_id
+           WHERE t.client = ? COLLATE NOCASE AND t.project_id IS NOT NULL
+           ORDER BY t.updated_at DESC
+           LIMIT 1`
+        )
+        .get(client) as { projectId: string } | undefined
+      if (row?.projectId) {
+        return { projectId: row.projectId, reason: 'client' }
+      }
+    }
+
+    const text = [input.client, input.title, input.content, input.notes]
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
+      .join(' ')
+      .toLowerCase()
+      .replace(/\s+/g, '')
+    if (text.length < 2) return null
+
+    const projects = this.db
+      .prepare('SELECT id, name FROM projects')
+      .all() as Array<{ id: string; name: string }>
+    let best: { id: string; score: number } | null = null
+    for (const project of projects) {
+      const name = project.name.toLowerCase().replace(/\s+/g, '')
+      if (name.length < 2) continue
+      let score = 0
+      if (text.includes(name)) {
+        score = 1000 + name.length
+      } else if (name.length >= 4) {
+        const grams = new Set<string>()
+        for (let index = 0; index < name.length - 1; index += 1) {
+          grams.add(name.slice(index, index + 2))
+        }
+        let matches = 0
+        for (const gram of grams) {
+          if (text.includes(gram)) matches += 1
+        }
+        if (matches >= 2 && matches / grams.size >= 0.4) {
+          score = matches * 10 + name.length
+        }
+      }
+      if (score > 0 && (!best || score > best.score)) {
+        best = { id: project.id, score }
+      }
+    }
+
+    return best ? { projectId: best.id, reason: 'content' } : null
   }
 
   private normalizeProjectId(projectId: string | null | undefined): string | null {

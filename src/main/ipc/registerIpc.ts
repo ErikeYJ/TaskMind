@@ -12,6 +12,7 @@ import {
   projectIdSchema,
   screenshotIdSchema,
   searchTasksSchema,
+  suggestProjectInputSchema,
   settingsPatchSchema,
   taskActionSchema,
   taskIdSchema,
@@ -72,6 +73,10 @@ export function registerIpc(context: IpcContext): void {
 
   handle(IPC.tasksSearch, (_event, query) => {
     return tasks.search(searchTasksSchema.parse({ query }).query)
+  })
+
+  handle(IPC.tasksSuggestProject, (_event, input) => {
+    return tasks.suggestProject(suggestProjectInputSchema.parse(input))
   })
 
   handle(IPC.projectsList, () => projects.list())

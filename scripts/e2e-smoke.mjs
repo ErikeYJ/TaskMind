@@ -140,6 +140,7 @@ async function main() {
     .textContent()
   assert.equal(selectedProject?.trim(), 'E2E 项目', 'project filter was not the default for the new task')
   await projectTaskDialog.locator('#task-title').fill('E2E 项目任务')
+  await projectTaskDialog.locator('#task-client').fill('历史客户')
   await projectTaskDialog.locator('#task-content').fill('这条任务应该在 E2E 项目下。')
   await projectTaskDialog.getByRole('button', { name: '添加任务' }).click()
   await mainPage.getByText('任务已添加').waitFor({ timeout: 15_000 })
@@ -177,6 +178,82 @@ async function main() {
 
   await mainPage.getByRole('button', { name: '查看全部' }).click()
   await mainPage.getByRole('heading', { name: '未完成' }).waitFor({ timeout: 10_000 })
+
+  log('testing inline project creation and automatic project suggestion')
+  await mainPage.getByRole('button', { name: '添加任务' }).first().click()
+  const inlineDialog = mainPage.getByRole('dialog').filter({ hasText: '添加任务' })
+  await inlineDialog.waitFor()
+  await inlineDialog.locator('#task-title').fill('即时项目任务')
+  await inlineDialog.getByRole('button', { name: '新建项目' }).click()
+  const cancelProjectDialog = mainPage
+    .getByRole('dialog')
+    .filter({ has: mainPage.locator('#project-name') })
+  await cancelProjectDialog.waitFor({ timeout: 10_000 })
+  await cancelProjectDialog.getByRole('button', { name: '取消' }).click()
+  await cancelProjectDialog.waitFor({ state: 'hidden' })
+  assert.equal(
+    await inlineDialog.locator('#task-title').inputValue(),
+    '即时项目任务',
+    'canceling project creation should preserve the task form'
+  )
+
+  await inlineDialog.getByRole('button', { name: '新建项目' }).click()
+  const createInlineProject = mainPage
+    .getByRole('dialog')
+    .filter({ has: mainPage.locator('#project-name') })
+  await createInlineProject.waitFor({ timeout: 10_000 })
+  await createInlineProject.locator('#project-name').fill('即时项目')
+  await createInlineProject.getByRole('button', { name: '创建项目' }).click()
+  await mainPage.getByText('项目已创建').waitFor({ timeout: 15_000 })
+  await createInlineProject.waitFor({ state: 'hidden' })
+  await mainPage.waitForFunction(
+    () => {
+      const select = document.querySelector('#task-project')
+      return (
+        select instanceof HTMLSelectElement &&
+        select.selectedOptions[0]?.textContent?.trim() === '即时项目'
+      )
+    },
+    undefined,
+    { timeout: 10_000 }
+  )
+  await inlineDialog.locator('#task-content').fill('在添加任务时直接新建项目。')
+  await inlineDialog.getByRole('button', { name: '添加任务' }).click()
+  await mainPage.getByText('任务已添加').waitFor({ timeout: 15_000 })
+  await inlineDialog.waitFor({ state: 'hidden' })
+  await dismissToasts(mainPage)
+  const inlineProjectTask = mainPage
+    .locator('div[role="button"]')
+    .filter({ hasText: '即时项目任务' })
+    .first()
+  await inlineProjectTask.waitFor({ timeout: 10_000 })
+  await inlineProjectTask.getByText('即时项目', { exact: true }).waitFor()
+
+  log('testing automatic project suggestion and manual override')
+  await mainPage.getByRole('button', { name: '添加任务' }).first().click()
+  const suggestionDialog = mainPage.getByRole('dialog').filter({ hasText: '添加任务' })
+  await suggestionDialog.waitFor()
+  await suggestionDialog.locator('#task-client').fill('历史客户')
+  await mainPage.waitForFunction(
+    () => {
+      const select = document.querySelector('#task-project')
+      return (
+        select instanceof HTMLSelectElement &&
+        select.selectedOptions[0]?.textContent?.trim() === 'E2E 项目 2'
+      )
+    },
+    undefined,
+    { timeout: 10_000 }
+  )
+  await suggestionDialog.locator('#task-project').selectOption({ label: '不关联项目' })
+  await mainPage.waitForTimeout(900)
+  assert.equal(
+    await suggestionDialog.locator('#task-project option:checked').textContent(),
+    '不关联项目',
+    'manual project choice was overridden by a suggestion'
+  )
+  await suggestionDialog.getByRole('button', { name: '取消' }).click()
+  await suggestionDialog.waitFor({ state: 'hidden' })
 
   log('adding a manual task')
   await mainPage.getByRole('button', { name: '添加任务' }).first().click()

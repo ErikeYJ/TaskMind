@@ -29,6 +29,7 @@ interface TaskState {
   projectFilterId: string | null
   projectEditorOpen: boolean
   editingProject: Project | null
+  projectEditorOnCreated: ((project: Project) => void) | null
   load: () => Promise<void>
   setView: (view: TaskView) => Promise<void>
   setProjectFilter: (projectId: string | null) => Promise<void>
@@ -43,7 +44,10 @@ interface TaskState {
   closeSettings: () => void
   openSearch: () => void
   closeSearch: () => void
-  openProjectEditor: (project?: Project | null) => void
+  openProjectEditor: (
+    project?: Project | null,
+    onCreated?: (project: Project) => void
+  ) => void
   closeProjectEditor: () => void
   setDetailTask: (task: Task | null) => void
 }
@@ -69,6 +73,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   projectFilterId: null,
   projectEditorOpen: false,
   editingProject: null,
+  projectEditorOnCreated: null,
 
   load: async () => {
     const requestId = ++listRequestId
@@ -282,13 +287,15 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   closeSettings: () => set({ settingsOpen: false }),
   openSearch: () => set({ searchOpen: true }),
   closeSearch: () => set({ searchOpen: false }),
-  openProjectEditor: (project = null) =>
+  openProjectEditor: (project = null, onCreated) =>
     set({
       projectEditorOpen: true,
       editingProject: project,
+      projectEditorOnCreated: onCreated ?? null,
       settingsOpen: false,
       searchOpen: false
     }),
-  closeProjectEditor: () => set({ projectEditorOpen: false, editingProject: null }),
+  closeProjectEditor: () =>
+    set({ projectEditorOpen: false, editingProject: null, projectEditorOnCreated: null }),
   setDetailTask: (task) => set({ detailTask: task })
 }))

@@ -2,7 +2,7 @@ import type { TaskAction, TaskStatus, TaskView } from './types'
 
 export const APP_NAME = 'TaskMind'
 export const APP_ID = 'com.taskmind.app'
-export const APP_VERSION = '0.1.4'
+export const APP_VERSION = '0.1.5'
 
 export const VIEW_ORDER: TaskView[] = ['today', 'all_open', 'in_progress', 'completed', 'suspended']
 

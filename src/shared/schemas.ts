@@ -70,6 +70,15 @@ export const undoTokenSchema = z.object({
   token: z.string().min(1).max(100)
 })
 
+export const suggestProjectInputSchema = z
+  .object({
+    client: z.string().max(160).nullable().optional(),
+    title: z.string().max(200).optional(),
+    content: z.string().max(20_000).optional(),
+    notes: z.string().max(10_000).optional()
+  })
+  .strict()
+
 export const transitionTaskSchema = z.object({
   id: z.string().min(1).max(100),
   action: taskActionSchema

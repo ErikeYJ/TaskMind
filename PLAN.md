@@ -306,7 +306,7 @@ resources/              应用图标
 ## 7. 打包与交付
 
 - `electron-builder` 生成 Windows x64 NSIS 安装包；可选 portable 绿色版。
-- `appId: com.taskmind.app`，`productName: TaskMind`，版本 `0.1.4`。
+- `appId: com.taskmind.app`，`productName: TaskMind`，版本 `0.1.5`。
 - 安装包内不包含任何 API Key。
 - 卸载默认不删除任务数据；数据在 `%APPDATA%\TaskMind`。
 - 第一版不做代码签名和自动更新；分享给同事时可能出现 SmartScreen 提示，需手动允许。

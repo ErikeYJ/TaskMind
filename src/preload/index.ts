@@ -41,6 +41,7 @@ const api: TaskmindApi = {
     list: (view, projectId = null) => invoke(IPC.tasksList, view, projectId),
     counts: (projectId = null) => invoke(IPC.tasksCounts, projectId),
     search: (query) => invoke(IPC.tasksSearch, query),
+    suggestProject: (input) => invoke(IPC.tasksSuggestProject, input),
     get: (id) => invoke(IPC.tasksGet, id),
     create: (input) => invoke(IPC.tasksCreate, input),
     update: (id, patch) => invoke(IPC.tasksUpdate, id, patch),

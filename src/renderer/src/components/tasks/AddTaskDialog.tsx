@@ -22,7 +22,11 @@ import {
 } from '@shared/aiDraft'
 import { getTodayString } from '@shared/date'
 import { defaultViewForTask } from '@shared/status'
-import type { AiTaskExtraction, CreateTaskInput } from '@shared/types'
+import type {
+  AiTaskExtraction,
+  CreateTaskInput,
+  ProjectSuggestion
+} from '@shared/types'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useTaskStore } from '../../stores/taskStore'
 import { toastError, toastSuccess } from '../../stores/toastStore'
@@ -55,6 +59,7 @@ export function AddTaskDialog(): React.JSX.Element | null {
   const [aiError, setAiError] = useState<string | null>(null)
   const [aiSkippedFields, setAiSkippedFields] = useState<AiFormField[]>([])
   const [pendingAi, setPendingAi] = useState<AiTaskExtraction | null>(null)
+  const [projectSuggestion, setProjectSuggestion] = useState<ProjectSuggestion | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [dragging, setDragging] = useState(false)
@@ -64,6 +69,10 @@ export function AddTaskDialog(): React.JSX.Element | null {
   const userEditedFields = useRef<AiEditedFields>({})
   const aiTimer = useRef<number | null>(null)
   const aiGeneration = useRef(0)
+  const suggestionTimer = useRef<number | null>(null)
+  const suggestionRequest = useRef(0)
+  const projectTouched = useRef(false)
+  const suggestedProjectId = useRef<string | null>(null)
 
   useEffect(() => {
     imagesRef.current = images
@@ -147,6 +156,16 @@ export function AddTaskDialog(): React.JSX.Element | null {
       for (const field of edited) next[field] = true
       userEditedFields.current = next
     }
+    if (Object.prototype.hasOwnProperty.call(patch, 'projectId')) {
+      projectTouched.current = true
+      suggestedProjectId.current = null
+      suggestionRequest.current += 1
+      if (suggestionTimer.current !== null) {
+        window.clearTimeout(suggestionTimer.current)
+        suggestionTimer.current = null
+      }
+      setProjectSuggestion(null)
+    }
     setForm((current) => ({ ...current, ...patch }))
   }
 
@@ -183,19 +202,100 @@ export function AddTaskDialog(): React.JSX.Element | null {
   }
 
   useEffect(() => {
+    if (!addOpen) return
+    if (projectTouched.current) return
+
+    const input = {
+      client: form.client.trim(),
+      title: form.title.trim(),
+      content: form.content.trim(),
+      notes: form.notes.trim()
+    }
+    const requestId = ++suggestionRequest.current
+    if (suggestionTimer.current !== null) {
+      window.clearTimeout(suggestionTimer.current)
+      suggestionTimer.current = null
+    }
+
+    if (!input.client && !input.title && !input.content && !input.notes) {
+      const previous = suggestedProjectId.current
+      if (previous) {
+        setForm((current) =>
+          current.projectId === previous ? { ...current, projectId: '' } : current
+        )
+      }
+      suggestedProjectId.current = null
+      setProjectSuggestion(null)
+      return
+    }
+
+    suggestionTimer.current = window.setTimeout(() => {
+      suggestionTimer.current = null
+      void (async () => {
+        try {
+          const suggestion = await window.taskmind.tasks.suggestProject(input)
+          if (requestId !== suggestionRequest.current || projectTouched.current) return
+          if (
+            suggestion &&
+            useTaskStore
+              .getState()
+              .projects.some((project) => project.id === suggestion.projectId)
+          ) {
+            setForm((current) => ({ ...current, projectId: suggestion.projectId }))
+            suggestedProjectId.current = suggestion.projectId
+            setProjectSuggestion(suggestion)
+            return
+          }
+          const previous = suggestedProjectId.current
+          if (previous) {
+            setForm((current) =>
+              current.projectId === previous ? { ...current, projectId: '' } : current
+            )
+          }
+          suggestedProjectId.current = null
+          setProjectSuggestion(null)
+        } catch {
+          // Project suggestions are a convenience; ignore failures.
+        }
+      })()
+    }, 350)
+
+    return () => {
+      if (suggestionTimer.current !== null) {
+        window.clearTimeout(suggestionTimer.current)
+        suggestionTimer.current = null
+      }
+    }
+  }, [addOpen, form.client, form.title, form.content, form.notes])
+
+  useEffect(() => {
     if (!addOpen) {
       didInitRef.current = false
       clearAiTimer()
       aiGeneration.current += 1
+      suggestionRequest.current += 1
+      if (suggestionTimer.current !== null) {
+        window.clearTimeout(suggestionTimer.current)
+        suggestionTimer.current = null
+      }
       return
     }
     if (didInitRef.current) return
     didInitRef.current = true
     clearAiTimer()
     aiGeneration.current += 1
+    suggestionRequest.current += 1
+    if (suggestionTimer.current !== null) {
+      window.clearTimeout(suggestionTimer.current)
+      suggestionTimer.current = null
+    }
+    const initialFilter = useTaskStore.getState().projectFilterId ?? ''
+    projectTouched.current = Boolean(initialFilter)
+    suggestedProjectId.current = null
+    setProjectSuggestion(null)
     setForm({
       ...EMPTY_TASK_FORM,
-      projectId: useTaskStore.getState().projectFilterId ?? ''
+      projectId: initialFilter
     })
     setImages([])
     imagesRef.current = []
@@ -230,6 +330,11 @@ export function AddTaskDialog(): React.JSX.Element | null {
     return () => {
       clearAiTimer()
       aiGeneration.current += 1
+      suggestionRequest.current += 1
+      if (suggestionTimer.current !== null) {
+        window.clearTimeout(suggestionTimer.current)
+        suggestionTimer.current = null
+      }
     }
   }, [])
 
