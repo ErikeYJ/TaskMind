@@ -1,9 +1,10 @@
-import { app, dialog } from 'electron'
+import { app, dialog, shell } from 'electron'
 import { existsSync } from 'node:fs'
+import Database from 'better-sqlite3'
 import { mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import type { AppDatabase } from '../db/database'
+import { SCHEMA_VERSION, type AppDatabase } from '../db/database'
 import type { MainWindowManager } from '../windows/mainWindow'
 import type { MediaService } from './mediaService'
 import type { SettingsService } from './settingsService'
@@ -13,9 +14,50 @@ import {
   validateBackupDatabase,
   writeBackupZip
 } from './backupArchive'
+import { isAutoBackupDue, pruneBackupFiles } from './backupPolicy'
 
 function timestampForFile(): string {
   return new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
+}
+
+export async function createPreMigrationBackupIfNeeded(
+  settings: SettingsService,
+  dbPath: string
+): Promise<string | null> {
+  if (!existsSync(dbPath)) return null
+  const probe = new Database(dbPath, { readonly: true, fileMustExist: true })
+  let version = 0
+  try {
+    version = probe.pragma('user_version', { simple: true }) as number
+  } finally {
+    probe.close()
+  }
+  if (version >= SCHEMA_VERSION) return null
+
+  const backupDir = join(settings.getDataDir(), 'backups')
+  await mkdir(backupDir, { recursive: true })
+  const destination = join(
+    backupDir,
+    `TaskMind-pre-migration-v${version}-${timestampForFile()}-${randomUUID().slice(0, 4)}.zip`
+  )
+  const tempDbPath = join(settings.getDataDir(), `pre-migration-${randomUUID()}.db`)
+  const source = new Database(dbPath)
+  try {
+    await source.backup(tempDbPath)
+    await writeBackupZip(
+      destination,
+      tempDbPath,
+      settings.getImagesDir(),
+      settings.getStoredForBackup()
+    )
+    await pruneBackupFiles(backupDir, 'TaskMind-pre-migration-', 3)
+    return destination
+  } finally {
+    source.close()
+    await rm(tempDbPath, { force: true })
+    await rm(`${tempDbPath}-wal`, { force: true })
+    await rm(`${tempDbPath}-shm`, { force: true })
+  }
 }
 
 export class BackupService {
@@ -25,6 +67,116 @@ export class BackupService {
     private readonly media: MediaService,
     private readonly mainWindow: MainWindowManager
   ) {}
+
+  private autoBackupRunning = false
+  private autoBackupTimer: ReturnType<typeof setInterval> | null = null
+
+  private autoBackupDir(): string {
+    return join(this.settings.getDataDir(), 'backups')
+  }
+
+  getAutoBackupDir(): string {
+    return this.autoBackupDir()
+  }
+
+  private async writeAutoBackup(destination: string): Promise<void> {
+    const tempDbPath = join(this.settings.getDataDir(), `auto-backup-${randomUUID()}.db`)
+    try {
+      await this.db.backup(tempDbPath)
+      await writeBackupZip(
+        destination,
+        tempDbPath,
+        this.media.imagesDir,
+        this.settings.getStoredForBackup()
+      )
+    } finally {
+      await rm(tempDbPath, { force: true })
+      await rm(`${tempDbPath}-wal`, { force: true })
+      await rm(`${tempDbPath}-shm`, { force: true })
+    }
+  }
+
+  async pruneAutoBackups(): Promise<void> {
+    const backup = this.settings.getPublic().backup
+    await pruneBackupFiles(this.autoBackupDir(), 'TaskMind-auto-', backup.keepCount)
+  }
+
+  async runAutoBackup(
+    reason: 'manual' | 'startup' | 'daily' = 'manual'
+  ): Promise<BackupResult> {
+    if (this.autoBackupRunning) {
+      return { ok: false, message: '备份正在进行，请稍后再试' }
+    }
+    if (reason !== 'manual' && !this.settings.getPublic().backup.autoEnabled) {
+      return { ok: false, message: '自动备份未开启' }
+    }
+
+    this.autoBackupRunning = true
+    try {
+      const backupDir = this.autoBackupDir()
+      await mkdir(backupDir, { recursive: true })
+      const destination = join(
+        backupDir,
+        `TaskMind-auto-${timestampForFile()}-${randomUUID().slice(0, 4)}.zip`
+      )
+      await this.writeAutoBackup(destination)
+      await this.pruneAutoBackups()
+      this.settings.updateBackupStatus({
+        lastBackupAt: new Date().toISOString(),
+        lastBackupPath: destination,
+        lastBackupError: null
+      })
+      return { ok: true, path: destination, message: '自动备份已生成' }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '未知错误'
+      this.settings.updateBackupStatus({ lastBackupError: message })
+      return { ok: false, message: `自动备份失败：${message}` }
+    } finally {
+      this.autoBackupRunning = false
+    }
+  }
+
+  async maybeRunDailyBackup(): Promise<void> {
+    const backup = this.settings.getPublic().backup
+    if (!backup.autoEnabled) return
+    if (!isAutoBackupDue(backup.lastBackupAt)) return
+    await this.runAutoBackup('daily')
+  }
+
+  startAutoBackups(): void {
+    if (this.autoBackupTimer) return
+    void this.maybeRunDailyBackup().catch((error) => {
+      console.error('[TaskMind] automatic backup failed:', error)
+    })
+    this.autoBackupTimer = setInterval(() => {
+      void this.maybeRunDailyBackup().catch((error) => {
+        console.error('[TaskMind] automatic backup failed:', error)
+      })
+    }, 60 * 60 * 1000)
+    this.autoBackupTimer.unref?.()
+  }
+
+  stopAutoBackups(): void {
+    if (this.autoBackupTimer) {
+      clearInterval(this.autoBackupTimer)
+      this.autoBackupTimer = null
+    }
+  }
+
+  async openAutoBackupDir(): Promise<BackupResult> {
+    const backupDir = this.autoBackupDir()
+    try {
+      await mkdir(backupDir, { recursive: true })
+      const error = await shell.openPath(backupDir)
+      if (error) return { ok: false, message: error }
+      return { ok: true, path: backupDir, message: '已打开备份目录' }
+    } catch (error) {
+      return {
+        ok: false,
+        message: `打开备份目录失败：${error instanceof Error ? error.message : '未知错误'}`
+      }
+    }
+  }
 
   async exportBackup(): Promise<BackupResult> {
     const parent = this.mainWindow.getWindow() ?? undefined

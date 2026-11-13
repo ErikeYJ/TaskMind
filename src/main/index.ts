@@ -6,7 +6,7 @@ import { openDatabase, type AppDatabase } from './db/database'
 import { registerIpc } from './ipc/registerIpc'
 import { AiService } from './services/aiService'
 import { applyAutostart, isStartHidden } from './services/autostart'
-import { BackupService } from './services/backupService'
+import { BackupService, createPreMigrationBackupIfNeeded } from './services/backupService'
 import { MediaService } from './services/mediaService'
 import { applyPendingImport } from './services/pendingImport'
 import { ProjectService } from './services/projectService'
@@ -43,12 +43,14 @@ let mainWindow: MainWindowManager | null = null
 let ballWindow: BallWindowManager | null = null
 let tray: TrayService | null = null
 let reminders: ReminderService | null = null
+let backup: BackupService | null = null
 let isQuitting = false
 
 function quitApp(): void {
   isQuitting = true
   mainWindow?.setQuitting(true)
   reminders?.stop()
+  backup?.stopAutoBackups()
   app.quit()
 }
 
@@ -102,7 +104,23 @@ async function bootstrap(): Promise<void> {
     console.error('[TaskMind] pending import failed:', importResult.error)
   }
 
-  settings = new SettingsService(userDataDir)
+  const settingsService = new SettingsService(userDataDir)
+  settings = settingsService
+  try {
+    const preMigrationBackup = await createPreMigrationBackupIfNeeded(
+      settingsService,
+      join(userDataDir, 'taskmind.db')
+    )
+    if (preMigrationBackup) {
+      console.log('[TaskMind] pre-migration backup created:', preMigrationBackup)
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '未知错误'
+    console.error('[TaskMind] pre-migration backup failed:', error)
+    settingsService.updateBackupStatus({
+      lastBackupError: `升级前备份失败：${message}`
+    })
+  }
   db = openDatabase(join(userDataDir, 'taskmind.db'))
   media = new MediaService(userDataDir)
   tasks = new TaskService(db, media)
@@ -132,13 +150,17 @@ async function bootstrap(): Promise<void> {
   })
   reminders.start()
 
-  const backup = new BackupService(db, settings, media, mainWindow)
+  const backupService = new BackupService(db, settings, media, mainWindow)
+  backup = backupService
+  backupService.startAutoBackups()
 
   nativeTheme.themeSource = publicSettings.theme
   applyAutostart(publicSettings.autostart)
   let lastBallVisible = publicSettings.ball.visible
   let lastBallSize = publicSettings.ball.size
   let lastBallDock = publicSettings.ball.dock
+  let lastAutoBackupEnabled = publicSettings.backup.autoEnabled
+  let lastBackupKeepCount = publicSettings.backup.keepCount
 
   settings.onChanged((updated) => {
     nativeTheme.themeSource = updated.theme
@@ -151,6 +173,16 @@ async function bootstrap(): Promise<void> {
       lastBallSize = updated.ball.size
       lastBallDock = updated.ball.dock
       ballWindow?.updateSize()
+    }
+    if (updated.backup.autoEnabled !== lastAutoBackupEnabled) {
+      lastAutoBackupEnabled = updated.backup.autoEnabled
+      if (updated.backup.autoEnabled) {
+        void backupService.maybeRunDailyBackup()
+      }
+    }
+    if (updated.backup.keepCount !== lastBackupKeepCount) {
+      lastBackupKeepCount = updated.backup.keepCount
+      void backupService.pruneAutoBackups()
     }
     tray?.refresh()
     mainWindow?.send(IPC.events.settingsChanged, updated)
@@ -176,7 +208,7 @@ async function bootstrap(): Promise<void> {
     mainWindow,
     ballWindow,
     reminders,
-    backup,
+    backup: backupService,
     onQuit: quitApp
   })
 

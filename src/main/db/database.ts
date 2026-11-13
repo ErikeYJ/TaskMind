@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 
 export type AppDatabase = Database.Database
+export const SCHEMA_VERSION = 2
 
 const SCHEMA_V1 = `
 PRAGMA journal_mode = WAL;
@@ -81,7 +82,7 @@ function migrate(db: AppDatabase): void {
       `)
     }
     db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);`)
-    db.pragma('user_version = 2')
+    db.pragma(`user_version = ${SCHEMA_VERSION}`)
   }
 }
 

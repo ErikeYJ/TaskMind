@@ -182,6 +182,10 @@ export function registerIpc(context: IpcContext): void {
 
   handle(IPC.backupImport, () => backup.importBackup())
 
+  handle(IPC.backupRunAuto, () => backup.runAutoBackup('manual'))
+
+  handle(IPC.backupOpenDir, () => backup.openAutoBackupDir())
+
   handle(IPC.appGetInfo, () => ({
     name: APP_NAME,
     version: app.getVersion() || APP_VERSION,

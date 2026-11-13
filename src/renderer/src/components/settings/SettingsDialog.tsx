@@ -12,6 +12,7 @@ import {
   Monitor,
   Moon,
   Palette,
+  RefreshCw,
   RotateCcw,
   Sparkles,
   Sun,
@@ -123,7 +124,7 @@ export function SettingsDialog(): React.JSX.Element | null {
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null)
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null)
-  const [busyData, setBusyData] = useState<'export' | 'import' | null>(null)
+  const [busyData, setBusyData] = useState<'export' | 'import' | 'auto' | null>(null)
   const [resetPositionBusy, setResetPositionBusy] = useState(false)
 
   useEffect(() => {
@@ -226,6 +227,32 @@ export function SettingsDialog(): React.JSX.Element | null {
 
   const setTheme = (theme: ThemeMode): void => {
     void updateSettings({ theme })
+  }
+
+  const runAutoBackup = async (): Promise<void> => {
+    setBusyData('auto')
+    try {
+      const result = await window.taskmind.backup.runAuto()
+      if (result.ok) {
+        toastSuccess(result.message)
+      } else {
+        toastError(result.message)
+      }
+      await useSettingsStore.getState().load()
+    } catch (error) {
+      toastError(getErrorMessage(error, '自动备份失败'))
+    } finally {
+      setBusyData(null)
+    }
+  }
+
+  const openBackupDir = async (): Promise<void> => {
+    try {
+      const result = await window.taskmind.backup.openDir()
+      if (!result.ok) toastError(result.message)
+    } catch (error) {
+      toastError(getErrorMessage(error, '打开备份目录失败'))
+    }
   }
 
   const exportBackup = async (): Promise<void> => {
@@ -605,9 +632,74 @@ export function SettingsDialog(): React.JSX.Element | null {
               <Section
                 icon={<HardDrive className="h-4 w-4" />}
                 title="数据"
-                description="任务、截图和设置都保存在本机。备份不会包含 API Key。"
+                description="任务、项目、截图和设置都保存在本机。备份不会包含 API Key。"
               >
+                <Row
+                  label="自动备份"
+                  description="每天自动备份数据库和截图，自动保留最近若干份。"
+                >
+                  <Toggle
+                    checked={settings.backup.autoEnabled}
+                    onCheckedChange={(checked) =>
+                      void updateSettings({ backup: { autoEnabled: checked } })
+                    }
+                    disabled={Boolean(busyData)}
+                  />
+                </Row>
+                <Row label="保留份数" description="只清理自动备份，不影响手动导出的备份文件。">
+                  <select
+                    className="h-9 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-2 text-xs text-[var(--fg)] outline-none focus:border-[var(--primary)] disabled:opacity-50"
+                    value={settings.backup.keepCount}
+                    onChange={(event) =>
+                      void updateSettings({ backup: { keepCount: Number(event.target.value) } })
+                    }
+                    disabled={Boolean(busyData)}
+                    aria-label="自动备份保留份数"
+                  >
+                    {Array.from(new Set([3, 7, 14, 30, settings.backup.keepCount]))
+                      .sort((a, b) => a - b)
+                      .map((count) => (
+                        <option key={count} value={count}>
+                          {count} 份
+                        </option>
+                      ))}
+                  </select>
+                </Row>
+                <div className="rounded-lg bg-[var(--surface-soft)] px-3 py-2 text-[11px] leading-5 text-[var(--muted)]">
+                  <div>
+                    最近自动备份：
+                    {settings.backup.lastBackupAt
+                      ? new Date(settings.backup.lastBackupAt).toLocaleString('zh-CN', {
+                          hour12: false
+                        })
+                      : '尚未备份'}
+                  </div>
+                  {settings.backup.lastBackupPath ? (
+                    <div className="mt-0.5 truncate font-mono text-[10px] text-[var(--muted)]">
+                      {settings.backup.lastBackupPath}
+                    </div>
+                  ) : null}
+                  {settings.backup.lastBackupError ? (
+                    <div className="mt-1 text-[var(--danger)]">
+                      上次失败：{settings.backup.lastBackupError}
+                    </div>
+                  ) : null}
+                </div>
                 <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    loading={busyData === 'auto'}
+                    disabled={Boolean(busyData)}
+                    onClick={() => void runAutoBackup()}
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    立即备份
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => void openBackupDir()}>
+                    <FolderOpen className="h-3.5 w-3.5" />
+                    打开备份目录
+                  </Button>
                   <Button
                     size="sm"
                     variant="secondary"

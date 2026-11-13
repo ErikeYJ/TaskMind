@@ -2,7 +2,7 @@ import { _electron as electron } from 'playwright-core'
 import { createRequire } from 'node:module'
 import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, rm } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import assert from 'node:assert/strict'
@@ -32,19 +32,38 @@ function log(message) {
   console.log(`[e2e] ${message}`)
 }
 
-function setClipboardImage(filePath) {
+async function setClipboardImage(filePath) {
   assert.ok(existsSync(filePath), `test image missing: ${filePath}`)
   const safePath = filePath.replace(/'/g, "''")
-  execFileSync(
-    'powershell.exe',
-    [
-      '-NoProfile',
-      '-STA',
-      '-Command',
-      `Add-Type -AssemblyName System.Windows.Forms,System.Drawing; $img=[System.Drawing.Image]::FromFile('${safePath}'); [System.Windows.Forms.Clipboard]::SetImage($img); $img.Dispose()`
-    ],
-    { windowsHide: true }
-  )
+  let lastError
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    try {
+      execFileSync(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-STA',
+          '-Command',
+          `Start-Sleep -Milliseconds 200; Add-Type -AssemblyName System.Windows.Forms,System.Drawing; $img=[System.Drawing.Image]::FromFile('${safePath}'); [System.Windows.Forms.Clipboard]::SetImage($img); $img.Dispose()`
+        ],
+        { windowsHide: true }
+      )
+      return
+    } catch (error) {
+      lastError = error
+      await new Promise((resolveWait) => setTimeout(resolveWait, 600))
+    }
+  }
+  throw lastError
+}
+
+async function autoBackupFiles() {
+  try {
+    const entries = await readdir(join(dataDir, 'backups'))
+    return entries.filter((name) => name.startsWith('TaskMind-auto-') && name.endsWith('.zip'))
+  } catch {
+    return []
+  }
 }
 
 async function dismissToasts(page) {
@@ -206,7 +225,7 @@ async function main() {
 
   if (hasAiKey) {
     log('testing real clipboard paste + multi-image AI extraction')
-    setClipboardImage(imagePath)
+    await setClipboardImage(imagePath)
     await new Promise((resolveWait) => setTimeout(resolveWait, 350))
 
     await mainPage.getByRole('button', { name: '添加任务' }).first().click()
@@ -229,7 +248,7 @@ async function main() {
     await mainPage.waitForTimeout(200)
 
     log('adding a second screenshot to the same task')
-    setClipboardImage(secondImagePath)
+    await setClipboardImage(secondImagePath)
     await new Promise((resolveWait) => setTimeout(resolveWait, 350))
     await mainPage.keyboard.press('Control+V')
     await mainPage.waitForFunction(
@@ -419,6 +438,26 @@ async function main() {
   await settingsDialog.waitFor({ timeout: 10_000 })
   await mainPage.waitForTimeout(350)
   await mainPage.screenshot({ path: join(artifacts, '09-settings.png') })
+
+  log('testing automatic backup')
+  let backups = await autoBackupFiles()
+  for (let attempt = 0; attempt < 120 && backups.length === 0; attempt += 1) {
+    await new Promise((resolveWait) => setTimeout(resolveWait, 500))
+    backups = await autoBackupFiles()
+  }
+  assert.ok(backups.length > 0, 'startup automatic backup was not created')
+  const beforeManual = backups.length
+  await settingsDialog.getByRole('button', { name: '立即备份' }).click()
+  await mainPage.getByText('自动备份已生成').waitFor({ timeout: 30_000 })
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    backups = await autoBackupFiles()
+    if (backups.length > beforeManual) break
+    await new Promise((resolveWait) => setTimeout(resolveWait, 500))
+  }
+  assert.ok(backups.length > beforeManual, 'manual automatic backup was not created')
+  await settingsDialog.getByText('最近自动备份').waitFor({ timeout: 10_000 })
+  await mainPage.waitForTimeout(250)
+  await mainPage.screenshot({ path: join(artifacts, '09a-auto-backup.png') })
 
   const notifyResult = await mainPage.evaluate(() => window.taskmind.notifications.test())
   log(`notification test: ${JSON.stringify(notifyResult)}`)

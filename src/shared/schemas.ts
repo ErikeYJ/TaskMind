@@ -131,6 +131,13 @@ export const settingsPatchSchema = z
       })
       .strict()
       .optional(),
+    backup: z
+      .object({
+        autoEnabled: z.boolean().optional(),
+        keepCount: z.number().int().min(1).max(30).optional()
+      })
+      .strict()
+      .optional(),
     ai: z
       .object({
         provider: z.enum(['opencode-go', 'custom']).optional(),

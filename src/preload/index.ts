@@ -80,7 +80,9 @@ const api: TaskmindApi = {
   },
   backup: {
     export: () => invoke(IPC.backupExport),
-    import: () => invoke(IPC.backupImport)
+    import: () => invoke(IPC.backupImport),
+    runAuto: () => invoke(IPC.backupRunAuto),
+    openDir: () => invoke(IPC.backupOpenDir)
   },
   app: {
     getInfo: () => invoke(IPC.appGetInfo),

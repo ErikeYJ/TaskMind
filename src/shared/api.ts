@@ -52,6 +52,8 @@ export const IPC = {
   ballResetPosition: 'ball:resetPosition',
   backupExport: 'backup:export',
   backupImport: 'backup:import',
+  backupRunAuto: 'backup:runAuto',
+  backupOpenDir: 'backup:openDir',
   appGetInfo: 'app:getInfo',
   appOpenDataDir: 'app:openDataDir',
   appQuit: 'app:quit',
@@ -124,6 +126,8 @@ export interface TaskmindApi {
   backup: {
     export(): Promise<BackupResult>
     import(): Promise<ImportResult>
+    runAuto(): Promise<BackupResult>
+    openDir(): Promise<BackupResult>
   }
   app: {
     getInfo(): Promise<AppInfo>

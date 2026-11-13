@@ -32,12 +32,21 @@ export interface WindowSettings {
   y: number | null
 }
 
+export interface BackupSettings {
+  autoEnabled: boolean
+  keepCount: number
+  lastBackupAt: string | null
+  lastBackupPath: string | null
+  lastBackupError: string | null
+}
+
 export interface AppSettings {
   theme: ThemeMode
   autostart: boolean
   notifications: NotificationSettings
   ball: BallSettings
   window: WindowSettings
+  backup: BackupSettings
   ai: AiPublicConfig
   onboardingCompleted: boolean
   hasApiKey: boolean
@@ -49,6 +58,7 @@ export interface SettingsPatch {
   notifications?: Partial<NotificationSettings>
   ball?: Partial<BallSettings>
   window?: Partial<WindowSettings>
+  backup?: Partial<Pick<BackupSettings, 'autoEnabled' | 'keepCount'>>
   ai?: Partial<AiPublicConfig>
   onboardingCompleted?: boolean
 }
@@ -83,6 +93,13 @@ export const DEFAULT_SETTINGS: AppSettings = {
     height: 800,
     x: null,
     y: null
+  },
+  backup: {
+    autoEnabled: true,
+    keepCount: 7,
+    lastBackupAt: null,
+    lastBackupPath: null,
+    lastBackupError: null
   },
   ai: DEFAULT_AI_CONFIG,
   onboardingCompleted: false,

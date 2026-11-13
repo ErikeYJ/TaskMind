@@ -41,6 +41,13 @@ interface StoredSettings {
     x: number | null
     y: number | null
   }
+  backup: {
+    autoEnabled: boolean
+    keepCount: number
+    lastBackupAt: string | null
+    lastBackupPath: string | null
+    lastBackupError: string | null
+  }
   ai: StoredAiConfig
   onboardingCompleted: boolean
   encryptedApiKey: string | null
@@ -53,6 +60,7 @@ function createDefaults(): StoredSettings {
     notifications: { ...DEFAULT_SETTINGS.notifications },
     ball: { ...DEFAULT_SETTINGS.ball },
     window: { ...DEFAULT_SETTINGS.window },
+    backup: { ...DEFAULT_SETTINGS.backup },
     ai: {
       ...DEFAULT_AI_CONFIG,
       sessionId: randomUUID()
@@ -85,6 +93,10 @@ function mergeSettings(base: StoredSettings, raw: unknown): StoredSettings {
       : {}
   const ai =
     data.ai && typeof data.ai === 'object' ? (data.ai as Record<string, unknown>) : {}
+  const backup =
+    data.backup && typeof data.backup === 'object'
+      ? (data.backup as Record<string, unknown>)
+      : {}
 
   return {
     theme: isTheme(data.theme) ? data.theme : base.theme,
@@ -140,6 +152,22 @@ function mergeSettings(base: StoredSettings, raw: unknown): StoredSettings {
         typeof windowData.y === 'number' && Number.isFinite(windowData.y)
           ? Math.round(windowData.y)
           : base.window.y
+    },
+    backup: {
+      autoEnabled:
+        typeof backup.autoEnabled === 'boolean'
+          ? backup.autoEnabled
+          : base.backup.autoEnabled,
+      keepCount:
+        typeof backup.keepCount === 'number' && Number.isFinite(backup.keepCount)
+          ? Math.min(30, Math.max(1, Math.round(backup.keepCount)))
+          : base.backup.keepCount,
+      lastBackupAt:
+        typeof backup.lastBackupAt === 'string' ? backup.lastBackupAt : null,
+      lastBackupPath:
+        typeof backup.lastBackupPath === 'string' ? backup.lastBackupPath : null,
+      lastBackupError:
+        typeof backup.lastBackupError === 'string' ? backup.lastBackupError : null
     },
     ai: {
       provider: isProvider(ai.provider) ? ai.provider : base.ai.provider,
@@ -231,6 +259,7 @@ export class SettingsService {
       notifications: { ...this.data.notifications },
       ball: { ...this.data.ball },
       window: { ...this.data.window },
+      backup: { ...this.data.backup },
       ai: {
         provider: this.data.ai.provider,
         baseUrl: this.data.ai.baseUrl,
@@ -305,6 +334,14 @@ export class SettingsService {
         ...patch.window
       }
     }
+    if (patch.backup) {
+      if (typeof patch.backup.autoEnabled === 'boolean') {
+        this.data.backup.autoEnabled = patch.backup.autoEnabled
+      }
+      if (typeof patch.backup.keepCount === 'number') {
+        this.data.backup.keepCount = Math.min(30, Math.max(1, Math.round(patch.backup.keepCount)))
+      }
+    }
     if (patch.ai) {
       this.data.ai = {
         ...this.data.ai,
@@ -357,6 +394,24 @@ export class SettingsService {
     return this.userDataDir
   }
 
+  updateBackupStatus(status: {
+    lastBackupAt?: string | null
+    lastBackupPath?: string | null
+    lastBackupError?: string | null
+  }): void {
+    if (status.lastBackupAt !== undefined) {
+      this.data.backup.lastBackupAt = status.lastBackupAt
+    }
+    if (status.lastBackupPath !== undefined) {
+      this.data.backup.lastBackupPath = status.lastBackupPath
+    }
+    if (status.lastBackupError !== undefined) {
+      this.data.backup.lastBackupError = status.lastBackupError
+    }
+    this.save()
+    this.emitChanged()
+  }
+
   getStoredForBackup(): Record<string, unknown> {
     return {
       theme: this.data.theme,
@@ -366,6 +421,10 @@ export class SettingsService {
       window: {
         width: this.data.window.width,
         height: this.data.window.height
+      },
+      backup: {
+        autoEnabled: this.data.backup.autoEnabled,
+        keepCount: this.data.backup.keepCount
       },
       ai: {
         provider: this.data.ai.provider,
