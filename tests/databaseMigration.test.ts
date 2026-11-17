@@ -77,9 +77,12 @@ describe('database migrations', () => {
     legacy.close()
 
     db = openDatabase(file)
-    expect(db.pragma('user_version', { simple: true })).toBe(2)
+    expect(db.pragma('user_version', { simple: true })).toBe(3)
     const columns = db.prepare('PRAGMA table_info(tasks)').all() as Array<{ name: string }>
     expect(columns.some((column) => column.name === 'project_id')).toBe(true)
+    const projectColumns = db.prepare('PRAGMA table_info(projects)').all() as Array<{ name: string }>
+    expect(projectColumns.some((column) => column.name === 'pinned')).toBe(true)
+    expect(projectColumns.some((column) => column.name === 'archived_at')).toBe(true)
 
     const tasks = new TaskService(db, noMedia)
     const legacyTask = tasks.get('legacy-task')

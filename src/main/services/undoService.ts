@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { DeleteUndoResult, UndoResult } from '../../shared/types'
+import type { BatchDeleteResult, DeleteUndoResult, UndoResult } from '../../shared/types'
 import type { DeletedProjectSnapshot, ProjectService } from './projectService'
 import type { DeletedTaskSnapshot, TaskService } from './taskService'
 
@@ -39,6 +39,19 @@ export class UndoService {
     timer.unref?.()
     this.pending.set(token, { kind: 'task', token, snapshot, timer })
     return { ok: true, undoToken: token }
+  }
+
+  deleteTasks(ids: string[]): BatchDeleteResult {
+    const snapshots = this.tasks.batchDeleteSnapshots(ids)
+    const undoTokens: string[] = []
+    for (const snapshot of snapshots) {
+      const token = randomUUID()
+      const timer = setTimeout(() => this.finalize(token), this.timeoutMs)
+      timer.unref?.()
+      this.pending.set(token, { kind: 'task', token, snapshot, timer })
+      undoTokens.push(token)
+    }
+    return { deleted: snapshots.length, undoTokens }
   }
 
   deleteProject(id: string): DeleteUndoResult {

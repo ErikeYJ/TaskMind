@@ -10,3 +10,5 @@ export const PROJECT_COLORS = [
 ] as const
 
 export const DEFAULT_PROJECT_COLOR = PROJECT_COLORS[0]
+
+export const UNASSIGNED_PROJECT_FILTER = '__unassigned__'

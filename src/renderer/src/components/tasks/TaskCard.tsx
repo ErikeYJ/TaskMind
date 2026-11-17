@@ -58,11 +58,20 @@ function actionsForStatus(status: TaskStatus): CardAction[] {
 interface TaskCardProps {
   task: Task
   onOpen: (id: string) => void
+  selectionMode?: boolean
+  selected?: boolean
+  onToggleSelect?: (id: string) => void
 }
 
-export function TaskCard({ task, onOpen }: TaskCardProps): React.JSX.Element {
+export function TaskCard({
+  task,
+  onOpen,
+  selectionMode = false,
+  selected = false,
+  onToggleSelect
+}: TaskCardProps): React.JSX.Element {
   const [busyAction, setBusyAction] = useState<TaskAction | null>(null)
-  const projects = useTaskStore((state) => state.projects)
+  const projects = useTaskStore((state) => state.allProjects)
   const project = task.projectId
     ? projects.find((item) => item.id === task.projectId)
     : undefined
@@ -78,17 +87,26 @@ export function TaskCard({ task, onOpen }: TaskCardProps): React.JSX.Element {
     <div
       role="button"
       tabIndex={0}
-      onClick={() => onOpen(task.id)}
+      onClick={(event) => {
+        if (selectionMode || event.ctrlKey || event.metaKey) {
+          event.preventDefault()
+          onToggleSelect?.(task.id)
+          return
+        }
+        onOpen(task.id)
+      }}
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget) return
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault()
-          onOpen(task.id)
+          if (selectionMode) onToggleSelect?.(task.id)
+          else onOpen(task.id)
         }
       }}
       className={cn(
         'group relative cursor-pointer overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 pl-5 shadow-[var(--shadow-soft)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[var(--border-strong)] hover:shadow-[var(--shadow)]',
-        task.status === 'done' && 'opacity-80'
+        task.status === 'done' && 'opacity-80',
+        selected && 'border-[var(--primary)] ring-2 ring-[var(--primary)]/25'
       )}
     >
       <span className={cn('absolute inset-y-0 left-0 w-1', statusAccent[task.status])} />
@@ -96,6 +114,26 @@ export function TaskCard({ task, onOpen }: TaskCardProps): React.JSX.Element {
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
+            {selectionMode ? (
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={selected}
+                aria-label={`选择任务 ${task.title}`}
+                className={cn(
+                  'flex h-5 w-5 shrink-0 items-center justify-center rounded-md border transition-colors',
+                  selected
+                    ? 'border-[var(--primary)] bg-[var(--primary)] text-[var(--primary-fg)]'
+                    : 'border-[var(--border-strong)] bg-[var(--surface)] text-transparent'
+                )}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onToggleSelect?.(task.id)
+                }}
+              >
+                <Check className="h-3 w-3" />
+              </button>
+            ) : null}
             <h3
               className={cn(
                 'min-w-0 truncate text-[15px] font-semibold leading-6 text-[var(--fg)]',
@@ -145,20 +183,22 @@ export function TaskCard({ task, onOpen }: TaskCardProps): React.JSX.Element {
           className="flex shrink-0 flex-wrap items-center justify-end gap-1"
           onClick={(event) => event.stopPropagation()}
         >
-          {actions.map((item) => (
-            <Button
-              key={item.action}
-              size="sm"
-              variant={item.primary ? 'soft' : 'ghost'}
-              loading={busyAction === item.action}
-              disabled={Boolean(busyAction)}
-              onClick={() => void run(item.action)}
-              title={item.label}
-            >
-              {item.icon}
-              <span className="hidden sm:inline">{item.label}</span>
-            </Button>
-          ))}
+          {!selectionMode
+            ? actions.map((item) => (
+                <Button
+                  key={item.action}
+                  size="sm"
+                  variant={item.primary ? 'soft' : 'ghost'}
+                  loading={busyAction === item.action}
+                  disabled={Boolean(busyAction)}
+                  onClick={() => void run(item.action)}
+                  title={item.label}
+                >
+                  {item.icon}
+                  <span className="hidden sm:inline">{item.label}</span>
+                </Button>
+              ))
+            : null}
         </div>
       </div>
     </div>

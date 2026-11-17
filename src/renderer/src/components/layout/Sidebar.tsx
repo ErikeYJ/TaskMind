@@ -1,15 +1,20 @@
+import { useState } from 'react'
 import {
+  Archive,
   CalendarDays,
   Check,
+  CircleDashed,
   Inbox,
   Pause,
   Pencil,
+  Pin,
   Play,
   Plus,
   Settings,
   Sparkles
 } from 'lucide-react'
 import { APP_VERSION, VIEW_LABELS, VIEW_ORDER } from '@shared/constants'
+import { UNASSIGNED_PROJECT_FILTER } from '@shared/projects'
 import type { TaskView } from '@shared/types'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useTaskStore } from '../../stores/taskStore'
@@ -30,6 +35,7 @@ export function Sidebar(): React.JSX.Element {
   const setView = useTaskStore((state) => state.setView)
   const openSettings = useTaskStore((state) => state.openSettings)
   const projects = useTaskStore((state) => state.projects)
+  const archivedProjects = useTaskStore((state) => state.archivedProjects)
   const projectsLoading = useTaskStore((state) => state.projectsLoading)
   const projectsError = useTaskStore((state) => state.projectsError)
   const projectFilterId = useTaskStore((state) => state.projectFilterId)
@@ -37,6 +43,7 @@ export function Sidebar(): React.JSX.Element {
   const loadProjects = useTaskStore((state) => state.loadProjects)
   const openProjectEditor = useTaskStore((state) => state.openProjectEditor)
   const settings = useSettingsStore((state) => state.settings)
+  const [showArchived, setShowArchived] = useState(false)
 
   return (
     <aside className="flex w-[248px] shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface-soft)]">
@@ -107,7 +114,7 @@ export function Sidebar(): React.JSX.Element {
           </div>
 
           <div className="space-y-0.5">
-            {projectsLoading && projects.length === 0 ? (
+            {projectsLoading && projects.length === 0 && archivedProjects.length === 0 ? (
               <div className="px-3 py-2 text-[11px] text-[var(--muted)]">正在读取项目…</div>
             ) : null}
 
@@ -160,6 +167,12 @@ export function Sidebar(): React.JSX.Element {
                       style={{ backgroundColor: project.color }}
                     />
                     <span className="flex-1 truncate">{project.name}</span>
+                    {project.pinned ? (
+                      <Pin
+                        className="h-3 w-3 shrink-0 text-[var(--primary)]"
+                        aria-label="已置顶"
+                      />
+                    ) : null}
                     <CountBadge count={project.openTaskCount} active={active} />
                   </button>
                   <button
@@ -174,6 +187,57 @@ export function Sidebar(): React.JSX.Element {
                 </div>
               )
             })}
+
+            <button
+              type="button"
+              onClick={() => void setProjectFilter(UNASSIGNED_PROJECT_FILTER)}
+              className={cn(
+                'flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-[13px] font-medium transition-colors',
+                projectFilterId === UNASSIGNED_PROJECT_FILTER
+                  ? 'bg-[var(--surface)] text-[var(--primary)] shadow-sm ring-1 ring-[var(--border)]'
+                  : 'text-[var(--muted)] hover:bg-[var(--surface)] hover:text-[var(--fg)]'
+              )}
+            >
+              <CircleDashed className="h-3.5 w-3.5 shrink-0" />
+              <span className="flex-1">未关联项目</span>
+            </button>
+
+            {archivedProjects.length > 0 ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowArchived((current) => !current)}
+                  className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-[11px] text-[var(--muted)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--fg)]"
+                >
+                  <Archive className="h-3 w-3 shrink-0" />
+                  <span className="flex-1">
+                    {showArchived ? '收起已归档' : `已归档 ${archivedProjects.length}`}
+                  </span>
+                </button>
+                {showArchived
+                  ? archivedProjects.map((project) => (
+                      <div
+                        key={project.id}
+                        className="flex items-center rounded-xl text-[var(--muted)] opacity-80 transition-opacity hover:bg-[var(--surface)] hover:opacity-100"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => openProjectEditor(project)}
+                          className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-3 py-2 text-left text-[12px]"
+                          title={`查看或恢复项目：${project.name}`}
+                        >
+                          <span
+                            className="h-2.5 w-2.5 shrink-0 rounded-full opacity-60"
+                            style={{ backgroundColor: project.color }}
+                          />
+                          <span className="flex-1 truncate">{project.name}</span>
+                          <CountBadge count={project.totalTaskCount} />
+                        </button>
+                      </div>
+                    ))
+                  : null}
+              </>
+            ) : null}
           </div>
         </div>
       </nav>

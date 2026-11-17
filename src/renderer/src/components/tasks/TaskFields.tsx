@@ -76,8 +76,13 @@ export function TaskFields({
   const [natural, setNatural] = useState('')
   const [hint, setHint] = useState<string | null>(null)
   const projects = useTaskStore((state) => state.projects)
+  const allProjects = useTaskStore((state) => state.allProjects)
   const openProjectEditor = useTaskStore((state) => state.openProjectEditor)
-  const selectedProject = projects.find((project) => project.id === value.projectId)
+  const selectedProject = allProjects.find((project) => project.id === value.projectId)
+  const projectOptions =
+    selectedProject && !projects.some((project) => project.id === selectedProject.id)
+      ? [...projects, selectedProject]
+      : projects
   const today = toDateString(new Date())
   const tomorrow = toDateString(addDays(new Date(), 1))
   const dayAfter = toDateString(addDays(new Date(), 2))
@@ -139,12 +144,13 @@ export function TaskFields({
             className={cn(inputClass, 'min-w-0 flex-1 cursor-pointer')}
             value={value.projectId}
             onChange={(event) => onChange({ projectId: event.target.value })}
-            disabled={disabled || projects.length === 0}
+            disabled={disabled || projectOptions.length === 0}
           >
-            <option value="">{projects.length === 0 ? '还没有项目' : '不关联项目'}</option>
-            {projects.map((project) => (
+            <option value="">{projectOptions.length === 0 ? '还没有项目' : '不关联项目'}</option>
+            {projectOptions.map((project) => (
               <option key={project.id} value={project.id}>
                 {project.name}
+                {project.archivedAt ? '（已归档）' : ''}
               </option>
             ))}
           </select>
@@ -161,7 +167,7 @@ export function TaskFields({
             新建项目
           </button>
         </div>
-        {projects.length === 0 ? (
+        {projectOptions.length === 0 ? (
           <p className="mt-1.5 text-[11px] text-[var(--muted)]">
             还没有项目，可以直接点「新建项目」创建并关联。
           </p>

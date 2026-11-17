@@ -3,10 +3,15 @@ import { IPC } from '../../shared/api'
 import { APP_NAME, APP_VERSION } from '../../shared/constants'
 import {
   addScreenshotSchema,
+  batchTaskProjectSchema,
+  batchTaskIdsSchema,
+  batchTransitionSchema,
   aiExtractInputSchema,
   apiKeySchema,
   ballExpandedSchema,
   createProjectInputSchema,
+  projectArchiveInputSchema,
+  projectMoveInputSchema,
   createTaskInputSchema,
   projectIdFilterSchema,
   projectIdSchema,
@@ -79,7 +84,9 @@ export function registerIpc(context: IpcContext): void {
     return tasks.suggestProject(suggestProjectInputSchema.parse(input))
   })
 
-  handle(IPC.projectsList, () => projects.list())
+  handle(IPC.projectsList, (_event, includeArchived) => {
+    return projects.list(includeArchived === true)
+  })
 
   handle(IPC.projectsCreate, (_event, input) => {
     return projects.create(createProjectInputSchema.parse(input))
@@ -94,6 +101,16 @@ export function registerIpc(context: IpcContext): void {
 
   handle(IPC.projectsDelete, (_event, id) => {
     return undo.deleteProject(projectIdSchema.shape.id.parse(id))
+  })
+
+  handle(IPC.projectsMove, (_event, id, direction) => {
+    const parsed = projectMoveInputSchema.parse({ id, direction })
+    projects.move(parsed.id, parsed.direction)
+  })
+
+  handle(IPC.projectsArchive, (_event, id, archived) => {
+    const parsed = projectArchiveInputSchema.parse({ id, archived })
+    return projects.setArchived(parsed.id, parsed.archived)
   })
 
   handle(IPC.tasksGet, (_event, id) => {
@@ -116,6 +133,20 @@ export function registerIpc(context: IpcContext): void {
 
   handle(IPC.tasksDelete, (_event, id) => {
     return undo.deleteTask(taskIdSchema.shape.id.parse(id))
+  })
+
+  handle(IPC.tasksBatchTransition, (_event, ids, action) => {
+    const parsed = batchTransitionSchema.parse({ ids, action })
+    return tasks.batchTransition(parsed.ids, parsed.action)
+  })
+
+  handle(IPC.tasksBatchProject, (_event, ids, projectId) => {
+    const parsed = batchTaskProjectSchema.parse({ ids, projectId })
+    return tasks.batchSetProject(parsed.ids, parsed.projectId ?? null)
+  })
+
+  handle(IPC.tasksBatchDelete, (_event, ids) => {
+    return undo.deleteTasks(batchTaskIdsSchema.parse(ids))
   })
 
   handle(IPC.tasksAddScreenshot, (_event, taskId, input) => {

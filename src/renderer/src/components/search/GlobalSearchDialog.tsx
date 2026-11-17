@@ -40,7 +40,7 @@ function snippetFor(task: Task, query: string): string {
 export function GlobalSearchDialog(): React.JSX.Element {
   const open = useTaskStore((state) => state.searchOpen)
   const closeSearch = useTaskStore((state) => state.closeSearch)
-  const projects = useTaskStore((state) => state.projects)
+  const projects = useTaskStore((state) => state.allProjects)
 
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Task[]>([])

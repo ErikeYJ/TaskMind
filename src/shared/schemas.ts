@@ -58,7 +58,22 @@ export const createProjectInputSchema = z
 export const updateProjectInputSchema = z
   .object({
     name: z.string().trim().min(1, '项目名称不能为空').max(60).optional(),
-    color: projectColorSchema.optional()
+    color: projectColorSchema.optional(),
+    pinned: z.boolean().optional()
+  })
+  .strict()
+
+export const projectMoveInputSchema = z
+  .object({
+    id: z.string().min(1).max(100),
+    direction: z.enum(['up', 'down'])
+  })
+  .strict()
+
+export const projectArchiveInputSchema = z
+  .object({
+    id: z.string().min(1).max(100),
+    archived: z.boolean()
   })
   .strict()
 
@@ -76,6 +91,22 @@ export const suggestProjectInputSchema = z
     title: z.string().max(200).optional(),
     content: z.string().max(20_000).optional(),
     notes: z.string().max(10_000).optional()
+  })
+  .strict()
+
+export const batchTaskIdsSchema = z.array(z.string().min(1).max(100)).min(1).max(200)
+
+export const batchTransitionSchema = z
+  .object({
+    ids: batchTaskIdsSchema,
+    action: taskActionSchema
+  })
+  .strict()
+
+export const batchTaskProjectSchema = z
+  .object({
+    ids: batchTaskIdsSchema,
+    projectId: projectIdFilterSchema
   })
   .strict()
 

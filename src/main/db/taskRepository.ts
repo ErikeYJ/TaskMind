@@ -6,6 +6,7 @@ import type {
   TaskStatus,
   TaskView
 } from '../../shared/types'
+import { UNASSIGNED_PROJECT_FILTER } from '../../shared/projects'
 
 export interface TaskRow {
   id: string
@@ -91,8 +92,16 @@ export class TaskRepository {
   constructor(private readonly db: AppDatabase) {}
 
   list(view: TaskView, today: string, projectId: string | null = null): Task[] {
-    const projectClause = projectId ? ' AND project_id = @projectId' : ''
-    const params: Record<string, unknown> = projectId ? { today, projectId } : { today }
+    const unassigned = projectId === UNASSIGNED_PROJECT_FILTER
+    const projectClause = projectId
+      ? unassigned
+        ? ' AND project_id IS NULL'
+        : ' AND project_id = @projectId'
+      : ''
+    const params: Record<string, unknown> =
+      projectId && !unassigned ? { today, projectId } : { today }
+    const filterParams: Record<string, unknown> =
+      projectId && !unassigned ? { projectId } : {}
     let rows: TaskRow[]
     if (view === 'today') {
       rows = this.db
@@ -105,25 +114,25 @@ export class TaskRepository {
         .prepare(
           `SELECT * FROM tasks WHERE status IN ('todo','in_progress','suspended')${projectClause} ${ACTIVE_ORDER}`
         )
-        .all(projectId ? { projectId } : {}) as TaskRow[]
+        .all(filterParams) as TaskRow[]
     } else if (view === 'in_progress') {
       rows = this.db
         .prepare(
           `SELECT * FROM tasks WHERE status = 'in_progress'${projectClause} ${ACTIVE_ORDER}`
         )
-        .all(projectId ? { projectId } : {}) as TaskRow[]
+        .all(filterParams) as TaskRow[]
     } else if (view === 'suspended') {
       rows = this.db
         .prepare(
           `SELECT * FROM tasks WHERE status = 'suspended'${projectClause} ${ACTIVE_ORDER}`
         )
-        .all(projectId ? { projectId } : {}) as TaskRow[]
+        .all(filterParams) as TaskRow[]
     } else {
       rows = this.db
         .prepare(
           `SELECT * FROM tasks WHERE status = 'done'${projectClause} ORDER BY completed_at DESC, updated_at DESC`
         )
-        .all(projectId ? { projectId } : {}) as TaskRow[]
+        .all(filterParams) as TaskRow[]
     }
 
     return this.withScreenshots(rows)
@@ -161,8 +170,14 @@ export class TaskRepository {
   }
 
   counts(today: string, projectId: string | null = null): TaskCounts {
-    const projectClause = projectId ? ' WHERE project_id = @projectId' : ''
-    const params: Record<string, unknown> = projectId ? { today, projectId } : { today }
+    const unassigned = projectId === UNASSIGNED_PROJECT_FILTER
+    const projectClause = projectId
+      ? unassigned
+        ? ' WHERE project_id IS NULL'
+        : ' WHERE project_id = @projectId'
+      : ''
+    const params: Record<string, unknown> =
+      projectId && !unassigned ? { today, projectId } : { today }
     const row = this.db
       .prepare(
         `SELECT

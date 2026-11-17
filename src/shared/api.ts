@@ -6,6 +6,8 @@ import type {
   BackupResult,
   BallLayout,
   BallTopTask,
+  BatchDeleteResult,
+  BatchTaskResult,
   CreateProjectInput,
   CreateTaskInput,
   DeleteUndoResult,
@@ -29,10 +31,15 @@ export const IPC = {
   tasksCounts: 'tasks:counts',
   tasksSearch: 'tasks:search',
   tasksSuggestProject: 'tasks:suggestProject',
+  tasksBatchTransition: 'tasks:batchTransition',
+  tasksBatchProject: 'tasks:batchProject',
+  tasksBatchDelete: 'tasks:batchDelete',
   projectsList: 'projects:list',
   projectsCreate: 'projects:create',
   projectsUpdate: 'projects:update',
   projectsDelete: 'projects:delete',
+  projectsMove: 'projects:move',
+  projectsArchive: 'projects:archive',
   tasksGet: 'tasks:get',
   tasksCreate: 'tasks:create',
   tasksUpdate: 'tasks:update',
@@ -98,14 +105,19 @@ export interface TaskmindApi {
     update(id: string, patch: UpdateTaskInput): Promise<Task>
     transition(id: string, action: TaskAction): Promise<Task>
     delete(id: string): Promise<DeleteUndoResult>
+    batchTransition(ids: string[], action: TaskAction): Promise<BatchTaskResult>
+    batchSetProject(ids: string[], projectId: string | null): Promise<BatchTaskResult>
+    batchDelete(ids: string[]): Promise<BatchDeleteResult>
     addScreenshot(taskId: string, input: ScreenshotInput): Promise<ScreenshotMeta>
     deleteScreenshot(id: string): Promise<void>
   }
   projects: {
-    list(): Promise<Project[]>
+    list(includeArchived?: boolean): Promise<Project[]>
     create(input: CreateProjectInput): Promise<Project>
     update(id: string, patch: UpdateProjectInput): Promise<Project>
     delete(id: string): Promise<DeleteUndoResult>
+    move(id: string, direction: 'up' | 'down'): Promise<void>
+    setArchived(id: string, archived: boolean): Promise<Project>
   }
   undo: {
     restore(token: string): Promise<UndoResult>

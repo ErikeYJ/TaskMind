@@ -255,6 +255,120 @@ async function main() {
   await suggestionDialog.getByRole('button', { name: '取消' }).click()
   await suggestionDialog.waitFor({ state: 'hidden' })
 
+  log('testing project pinning, archiving and restoration')
+  const inlineProjectRow = mainPage
+    .locator('button')
+    .filter({ hasText: '即时项目' })
+    .first()
+  await inlineProjectRow.hover()
+  await mainPage.getByRole('button', { name: '编辑项目：即时项目' }).click()
+  const inlineProjectEdit = mainPage
+    .getByRole('dialog')
+    .filter({ has: mainPage.locator('#project-name') })
+  await inlineProjectEdit.waitFor({ timeout: 10_000 })
+  await inlineProjectEdit.getByRole('button', { name: '置顶', exact: true }).click()
+  await mainPage.waitForTimeout(400)
+  await inlineProjectEdit.getByRole('button', { name: '取消' }).click()
+  await inlineProjectEdit.waitFor({ state: 'hidden' })
+
+  const pinnedProjectRow = mainPage
+    .locator('button')
+    .filter({ hasText: '即时项目' })
+    .first()
+  const otherProjectRow = mainPage
+    .locator('button')
+    .filter({ hasText: 'E2E 项目 2' })
+    .first()
+  const pinnedBox = await pinnedProjectRow.boundingBox()
+  const otherBox = await otherProjectRow.boundingBox()
+  assert(pinnedBox && otherBox && pinnedBox.y < otherBox.y, 'pinned project was not moved first')
+
+  await pinnedProjectRow.hover()
+  await mainPage.getByRole('button', { name: '编辑项目：即时项目' }).click()
+  const archiveProjectDialog = mainPage
+    .getByRole('dialog')
+    .filter({ has: mainPage.locator('#project-name') })
+  await archiveProjectDialog.waitFor({ timeout: 10_000 })
+  await archiveProjectDialog.getByRole('button', { name: '归档项目' }).click()
+  await mainPage.getByText('项目已归档', { exact: true }).waitFor({ timeout: 10_000 })
+  await archiveProjectDialog.waitFor({ state: 'hidden' })
+  await inlineProjectTask.getByText('即时项目', { exact: true }).waitFor()
+  await mainPage.getByRole('button', { name: /已归档 1/ }).click()
+  const archivedProjectRow = mainPage.getByTitle('查看或恢复项目：即时项目')
+  await archivedProjectRow.waitFor({ timeout: 10_000 })
+  await archivedProjectRow.click()
+  const restoreProjectDialog = mainPage
+    .getByRole('dialog')
+    .filter({ has: mainPage.locator('#project-name') })
+  await restoreProjectDialog.waitFor({ timeout: 10_000 })
+  await restoreProjectDialog.getByRole('button', { name: '恢复项目' }).click()
+  await mainPage.getByText('项目已恢复').waitFor({ timeout: 10_000 })
+  await restoreProjectDialog.waitFor({ state: 'hidden' })
+  await mainPage.getByRole('button', { name: '编辑项目：即时项目' }).waitFor()
+
+  log('testing batch task operations')
+  for (const title of ['批量任务 1', '批量任务 2', '批量任务 3', '批量任务 4']) {
+    await mainPage.getByRole('button', { name: '添加任务' }).first().click()
+    const batchDialog = mainPage.getByRole('dialog').filter({ hasText: '添加任务' })
+    await batchDialog.waitFor()
+    await batchDialog.locator('#task-title').fill(title)
+    await batchDialog.getByRole('button', { name: '添加任务' }).click()
+    await mainPage.getByText('任务已添加').waitFor({ timeout: 15_000 })
+    await batchDialog.waitFor({ state: 'hidden' })
+    await dismissToasts(mainPage)
+  }
+
+  await mainPage.getByRole('button', { name: '多选' }).click()
+  await mainPage.getByRole('checkbox', { name: '选择任务 批量任务 1' }).click()
+  await mainPage.getByRole('checkbox', { name: '选择任务 批量任务 2' }).click()
+  await mainPage.getByRole('button', { name: '完成', exact: true }).click()
+  await mainPage.getByText('已更新 2 个任务').waitFor({ timeout: 15_000 })
+  await mainPage.getByRole('button', { name: /已完成/ }).first().click()
+  await mainPage.getByRole('heading', { name: '已完成' }).waitFor({ timeout: 10_000 })
+  await mainPage
+    .locator('div[role="button"]')
+    .filter({ hasText: '批量任务 1' })
+    .first()
+    .waitFor({ timeout: 10_000 })
+  await mainPage
+    .locator('div[role="button"]')
+    .filter({ hasText: '批量任务 2' })
+    .first()
+    .waitFor({ timeout: 10_000 })
+  await mainPage.getByRole('button', { name: /未完成/ }).first().click()
+  await mainPage.getByRole('heading', { name: '未完成' }).waitFor({ timeout: 10_000 })
+
+  await mainPage.getByRole('button', { name: '多选' }).click()
+  await mainPage.getByRole('checkbox', { name: '选择任务 批量任务 3' }).click()
+  await mainPage.getByRole('checkbox', { name: '选择任务 批量任务 4' }).click()
+  await mainPage.getByLabel('批量移动到项目').selectOption({ label: '即时项目' })
+  await mainPage.getByText('已移动 2 个任务').waitFor({ timeout: 15_000 })
+  const batchTask3 = mainPage
+    .locator('div[role="button"]')
+    .filter({ hasText: '批量任务 3' })
+    .first()
+  const batchTask4 = mainPage
+    .locator('div[role="button"]')
+    .filter({ hasText: '批量任务 4' })
+    .first()
+  await batchTask3.getByText('即时项目', { exact: true }).waitFor({ timeout: 10_000 })
+  await batchTask4.getByText('即时项目', { exact: true }).waitFor({ timeout: 10_000 })
+
+  await mainPage.getByRole('button', { name: '多选' }).click()
+  await mainPage.getByRole('checkbox', { name: '选择任务 批量任务 3' }).click()
+  await mainPage.getByRole('checkbox', { name: '选择任务 批量任务 4' }).click()
+  await mainPage.getByRole('button', { name: '删除', exact: true }).click()
+  const batchDeleteDialog = mainPage
+    .getByRole('dialog')
+    .filter({ hasText: '删除选中的 2 个任务？' })
+  await batchDeleteDialog.waitFor({ timeout: 10_000 })
+  await batchDeleteDialog.getByRole('button', { name: '删除任务' }).click()
+  await mainPage.getByText('已删除 2 个任务').waitFor({ timeout: 15_000 })
+  await mainPage.getByRole('button', { name: '撤销', exact: true }).click()
+  await mainPage.getByText('已恢复 2 个任务').waitFor({ timeout: 15_000 })
+  await batchTask3.getByText('即时项目', { exact: true }).waitFor({ timeout: 10_000 })
+  await batchTask4.getByText('即时项目', { exact: true }).waitFor({ timeout: 10_000 })
+
   log('adding a manual task')
   await mainPage.getByRole('button', { name: '添加任务' }).first().click()
   const addDialog = mainPage.getByRole('dialog').filter({ hasText: '添加任务' })
@@ -268,6 +382,17 @@ async function main() {
   await mainPage.getByText('任务已添加').waitFor({ timeout: 15_000 })
   await addDialog.waitFor({ state: 'hidden' })
   await mainPage.screenshot({ path: join(artifacts, '03-task-added.png') })
+
+  log('testing the unassigned project filter')
+  await mainPage.getByRole('button', { name: '未关联项目' }).click()
+  await mainPage.getByRole('heading', { name: '未关联项目' }).waitFor({ timeout: 10_000 })
+  await mainPage
+    .locator('div[role="button"]')
+    .filter({ hasText: 'E2E 手动任务' })
+    .first()
+    .waitFor({ timeout: 10_000 })
+  await mainPage.getByRole('button', { name: '查看全部' }).click()
+  await mainPage.getByRole('heading', { name: '未完成' }).waitFor({ timeout: 10_000 })
 
   log('testing status transitions')
   const card = mainPage

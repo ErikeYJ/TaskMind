@@ -3,7 +3,7 @@ import { mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 
 export type AppDatabase = Database.Database
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
 const SCHEMA_V1 = `
 PRAGMA journal_mode = WAL;
@@ -82,6 +82,23 @@ function migrate(db: AppDatabase): void {
       `)
     }
     db.exec(`CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id);`)
+    db.pragma('user_version = 2')
+  }
+
+  if (version < 3) {
+    const columnInfo = db.prepare('PRAGMA table_info(projects)').all() as Array<{ name: string }>
+    if (!columnInfo.some((column) => column.name === 'pinned')) {
+      db.exec('ALTER TABLE projects ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0;')
+    }
+    if (!columnInfo.some((column) => column.name === 'sort_order')) {
+      db.exec('ALTER TABLE projects ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;')
+    }
+    if (!columnInfo.some((column) => column.name === 'archived_at')) {
+      db.exec('ALTER TABLE projects ADD COLUMN archived_at TEXT;')
+    }
+    db.exec(
+      'CREATE INDEX IF NOT EXISTS idx_projects_order ON projects(archived_at, pinned, sort_order);'
+    )
     db.pragma(`user_version = ${SCHEMA_VERSION}`)
   }
 }

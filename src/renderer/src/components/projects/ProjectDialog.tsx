@@ -1,6 +1,16 @@
 import { useEffect, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { Check, FolderPlus, Trash2, X } from 'lucide-react'
+import {
+  Archive,
+  ArchiveRestore,
+  ArrowDown,
+  ArrowUp,
+  Check,
+  FolderPlus,
+  Pin,
+  Trash2,
+  X
+} from 'lucide-react'
 import { DEFAULT_PROJECT_COLOR, PROJECT_COLORS } from '@shared/projects'
 import { useTaskStore } from '../../stores/taskStore'
 import { toastError, toastSuccess, toastUndo } from '../../stores/toastStore'
@@ -12,14 +22,19 @@ import { cn } from '../../lib/utils'
 export function ProjectDialog(): React.JSX.Element {
   const open = useTaskStore((state) => state.projectEditorOpen)
   const editing = useTaskStore((state) => state.editingProject)
+  const projects = useTaskStore((state) => state.projects)
   const closeProjectEditor = useTaskStore((state) => state.closeProjectEditor)
   const loadProjects = useTaskStore((state) => state.loadProjects)
   const refreshAfterChange = useTaskStore((state) => state.refreshAfterChange)
 
   const [name, setName] = useState('')
   const [color, setColor] = useState<string>(DEFAULT_PROJECT_COLOR)
+  const [pinned, setPinned] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [archiving, setArchiving] = useState(false)
+  const [busyPin, setBusyPin] = useState(false)
+  const [sorting, setSorting] = useState<'up' | 'down' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -27,9 +42,13 @@ export function ProjectDialog(): React.JSX.Element {
     if (!open) return
     setName(editing?.name ?? '')
     setColor(editing?.color ?? DEFAULT_PROJECT_COLOR)
+    setPinned(Boolean(editing?.pinned))
     setError(null)
     setSaving(false)
     setDeleting(false)
+    setArchiving(false)
+    setBusyPin(false)
+    setSorting(null)
     setConfirmDelete(false)
   }, [open, editing?.id])
 
@@ -102,12 +121,74 @@ export function ProjectDialog(): React.JSX.Element {
     }
   }
 
+  const togglePin = async (): Promise<void> => {
+    if (!editing) return
+    const next = !pinned
+    setPinned(next)
+    setBusyPin(true)
+    setError(null)
+    try {
+      await window.taskmind.projects.update(editing.id, { pinned: next })
+      await loadProjects()
+    } catch (err) {
+      setPinned(!next)
+      setError(getErrorMessage(err, '更新置顶状态失败'))
+    } finally {
+      setBusyPin(false)
+    }
+  }
+
+  const move = async (direction: 'up' | 'down'): Promise<void> => {
+    if (!editing) return
+    setSorting(direction)
+    setError(null)
+    try {
+      await window.taskmind.projects.move(editing.id, direction)
+      await loadProjects()
+    } catch (err) {
+      setError(getErrorMessage(err, '调整项目顺序失败'))
+    } finally {
+      setSorting(null)
+    }
+  }
+
+  const toggleArchive = async (): Promise<void> => {
+    if (!editing) return
+    const restoring = Boolean(editing.archivedAt)
+    const wasFilter = useTaskStore.getState().projectFilterId === editing.id
+    setArchiving(true)
+    setError(null)
+    try {
+      await window.taskmind.projects.setArchived(editing.id, !restoring)
+      closeProjectEditor()
+      await loadProjects()
+      await refreshAfterChange()
+      if (wasFilter && !restoring) {
+        await useTaskStore.getState().setProjectFilter(null)
+      }
+      toastSuccess(restoring ? '项目已恢复' : '项目已归档')
+    } catch (err) {
+      setError(getErrorMessage(err, restoring ? '恢复项目失败' : '归档项目失败'))
+    } finally {
+      setArchiving(false)
+    }
+  }
+
+  const archived = Boolean(editing?.archivedAt)
+  const pinnedGroup = projects.filter((project) => project.pinned === pinned)
+  const pinnedIndex = editing
+    ? pinnedGroup.findIndex((project) => project.id === editing.id)
+    : -1
+  const canMoveUp = pinnedIndex > 0
+  const canMoveDown = pinnedIndex >= 0 && pinnedIndex < pinnedGroup.length - 1
+  const busy = saving || deleting || archiving
+
   return (
     <>
       <Dialog.Root
         open={open}
         onOpenChange={(next) => {
-          if (!next && !saving && !deleting) closeProjectEditor()
+          if (!next && !busy) closeProjectEditor()
         }}
       >
         <Dialog.Portal>
@@ -123,12 +204,16 @@ export function ProjectDialog(): React.JSX.Element {
                     {editing ? '编辑项目' : '新建项目'}
                   </Dialog.Title>
                   <Dialog.Description className="mt-0.5 text-xs text-[var(--muted)]">
-                    {editing ? '修改项目名称或颜色，不会影响任务内容。' : '用项目把相关任务归类。'}
+                    {editing
+                      ? archived
+                        ? '项目已归档，任务仍保留关联。'
+                        : '修改项目名称、颜色，或调整项目列表顺序。'
+                      : '用项目把相关任务归类。'}
                   </Dialog.Description>
                 </div>
               </div>
               <Dialog.Close asChild>
-                <Button variant="ghost" size="icon" title="关闭" disabled={saving || deleting}>
+                <Button variant="ghost" size="icon" title="关闭" disabled={busy}>
                   <X className="h-5 w-5" />
                 </Button>
               </Dialog.Close>
@@ -154,7 +239,7 @@ export function ProjectDialog(): React.JSX.Element {
                   }}
                   placeholder="例如：金色花园安装项目"
                   maxLength={60}
-                  disabled={saving || deleting}
+                  disabled={busy || busyPin || Boolean(sorting)}
                   autoFocus
                   className="h-10 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--fg)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:ring-2 focus:ring-teal-500/15 disabled:opacity-50"
                 />
@@ -180,7 +265,7 @@ export function ProjectDialog(): React.JSX.Element {
                         title={`使用颜色 ${item}`}
                         aria-label={`使用颜色 ${item}`}
                         aria-pressed={selected}
-                        disabled={saving || deleting}
+                        disabled={busy || busyPin || Boolean(sorting)}
                       >
                         {selected ? <Check className="h-4 w-4 text-white" /> : null}
                       </button>
@@ -188,6 +273,61 @@ export function ProjectDialog(): React.JSX.Element {
                   })}
                 </div>
               </div>
+
+              {editing ? (
+                archived ? (
+                  <div className="rounded-xl border border-dashed border-[var(--border-strong)] bg-[var(--surface-soft)] px-3 py-2.5 text-[11px] leading-5 text-[var(--muted)]">
+                    该项目已归档，任务仍保留在项目里。点击下方「恢复项目」可重新回到默认列表。
+                  </div>
+                ) : (
+                  <div className="space-y-2 rounded-xl border border-[var(--border)] bg-[var(--surface-soft)] p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-[12px] font-medium text-[var(--fg)]">置顶项目</div>
+                        <div className="text-[11px] text-[var(--muted)]">置顶后始终排在项目列表前面</div>
+                      </div>
+                      <Button
+                        size="xs"
+                        variant={pinned ? 'soft' : 'secondary'}
+                        loading={busyPin}
+                        onClick={() => void togglePin()}
+                        disabled={busy || Boolean(sorting)}
+                      >
+                        <Pin className="h-3 w-3" />
+                        {pinned ? '已置顶' : '置顶'}
+                      </Button>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 border-t border-[var(--border)] pt-2">
+                      <div className="min-w-0">
+                        <div className="text-[12px] font-medium text-[var(--fg)]">项目顺序</div>
+                        <div className="text-[11px] text-[var(--muted)]">在同组项目中上下移动</div>
+                      </div>
+                      <div className="flex shrink-0 gap-1">
+                        <Button
+                          size="xs"
+                          variant="secondary"
+                          loading={sorting === 'up'}
+                          disabled={!canMoveUp || busy || Boolean(sorting)}
+                          onClick={() => void move('up')}
+                        >
+                          <ArrowUp className="h-3 w-3" />
+                          上移
+                        </Button>
+                        <Button
+                          size="xs"
+                          variant="secondary"
+                          loading={sorting === 'down'}
+                          disabled={!canMoveDown || busy || Boolean(sorting)}
+                          onClick={() => void move('down')}
+                        >
+                          <ArrowDown className="h-3 w-3" />
+                          下移
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              ) : null}
 
               {error ? (
                 <p className="rounded-lg bg-[var(--danger-soft)] px-3 py-2 text-xs text-[var(--danger)]">
@@ -200,22 +340,38 @@ export function ProjectDialog(): React.JSX.Element {
                   <div className="text-[11px] leading-5 text-[var(--muted)]">
                     该项目下有 {editing.openTaskCount} 个未完成任务，共 {editing.totalTaskCount} 个。
                   </div>
-                  <Button
-                    size="xs"
-                    variant="ghost"
-                    className="shrink-0 text-[var(--danger)] hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
-                    onClick={() => setConfirmDelete(true)}
-                    disabled={saving || deleting}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                    删除
-                  </Button>
+                  <div className="flex shrink-0 items-center gap-1">
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      onClick={() => void toggleArchive()}
+                      loading={archiving}
+                      disabled={busy || busyPin || Boolean(sorting)}
+                    >
+                      {archived ? (
+                        <ArchiveRestore className="h-3 w-3" />
+                      ) : (
+                        <Archive className="h-3 w-3" />
+                      )}
+                      {archived ? '恢复项目' : '归档项目'}
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      className="text-[var(--danger)] hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
+                      onClick={() => setConfirmDelete(true)}
+                      disabled={busy || busyPin || Boolean(sorting)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      删除
+                    </Button>
+                  </div>
                 </div>
               ) : null}
             </div>
 
             <div className="flex justify-end gap-2 border-t border-[var(--border)] px-6 py-4">
-              <Button variant="ghost" size="md" onClick={closeProjectEditor} disabled={saving || deleting}>
+              <Button variant="ghost" size="md" onClick={closeProjectEditor} disabled={busy}>
                 取消
               </Button>
               <Button
@@ -223,7 +379,7 @@ export function ProjectDialog(): React.JSX.Element {
                 size="md"
                 loading={saving}
                 onClick={() => void save()}
-                disabled={deleting}
+                disabled={deleting || archiving || busyPin || Boolean(sorting)}
               >
                 {editing ? '保存项目' : '创建项目'}
               </Button>

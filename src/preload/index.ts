@@ -47,14 +47,19 @@ const api: TaskmindApi = {
     update: (id, patch) => invoke(IPC.tasksUpdate, id, patch),
     transition: (id, action) => invoke(IPC.tasksTransition, id, action),
     delete: (id) => invoke(IPC.tasksDelete, id),
+    batchTransition: (ids, action) => invoke(IPC.tasksBatchTransition, ids, action),
+    batchSetProject: (ids, projectId) => invoke(IPC.tasksBatchProject, ids, projectId),
+    batchDelete: (ids) => invoke(IPC.tasksBatchDelete, ids),
     addScreenshot: (taskId, input) => invoke(IPC.tasksAddScreenshot, taskId, input),
     deleteScreenshot: (id) => invoke(IPC.tasksDeleteScreenshot, id)
   },
   projects: {
-    list: () => invoke(IPC.projectsList),
+    list: (includeArchived = false) => invoke(IPC.projectsList, includeArchived),
     create: (input) => invoke(IPC.projectsCreate, input),
     update: (id, patch) => invoke(IPC.projectsUpdate, id, patch),
-    delete: (id) => invoke(IPC.projectsDelete, id)
+    delete: (id) => invoke(IPC.projectsDelete, id),
+    move: (id, direction) => invoke(IPC.projectsMove, id, direction),
+    setArchived: (id, archived) => invoke(IPC.projectsArchive, id, archived)
   },
   undo: {
     restore: (token) => invoke(IPC.undoRestore, token)

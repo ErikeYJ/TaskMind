@@ -55,17 +55,23 @@ export class ProjectService {
     }
   }
 
-  list(): Project[] {
-    return this.repository.list()
+  list(includeArchived = false): Project[] {
+    return this.repository.list(includeArchived)
   }
 
   create(input: CreateProjectInput): Project {
     const id = randomUUID()
     const now = nowIso()
+    const maxSort = this.db
+      .prepare('SELECT COALESCE(MAX(sort_order), -1) AS value FROM projects WHERE archived_at IS NULL')
+      .get() as { value: number }
     const row: ProjectRow = {
       id,
       name: cleanName(input.name),
       color: cleanColor(input.color),
+      pinned: 0,
+      sort_order: Number(maxSort.value ?? -1) + 1,
+      archived_at: null,
       created_at: now,
       updated_at: now
     }
@@ -83,11 +89,14 @@ export class ProjectService {
 
   update(id: string, patch: UpdateProjectInput): Project {
     if (!this.repository.exists(id)) throw new Error('项目不存在')
-    const fields: Partial<Pick<ProjectRow, 'name' | 'color' | 'updated_at'>> = {
+    const fields: Partial<
+      Pick<ProjectRow, 'name' | 'color' | 'pinned' | 'updated_at'>
+    > = {
       updated_at: nowIso()
     }
     if (patch.name !== undefined) fields.name = cleanName(patch.name)
     if (patch.color !== undefined) fields.color = cleanColor(patch.color)
+    if (typeof patch.pinned === 'boolean') fields.pinned = patch.pinned ? 1 : 0
     try {
       this.repository.update(id, fields)
     } catch (error) {
@@ -140,6 +149,47 @@ export class ProjectService {
     if (!project) throw new Error('恢复项目失败')
     this.emitChanged()
     return project
+  }
+
+  setArchived(id: string, archived: boolean): Project {
+    if (!this.repository.exists(id)) throw new Error('项目不存在')
+    this.repository.update(id, {
+      archived_at: archived ? nowIso() : null,
+      updated_at: nowIso()
+    })
+    const project = this.repository.get(id)
+    if (!project) throw new Error('项目不存在')
+    this.emitChanged()
+    return project
+  }
+
+  move(id: string, direction: 'up' | 'down'): void {
+    const ordered = this.repository.list(false)
+    const current = ordered.find((project) => project.id === id)
+    if (!current) throw new Error('项目不存在')
+    if (current.archivedAt) throw new Error('归档项目不能排序')
+    const group = ordered.filter((project) => project.pinned === current.pinned)
+    const index = group.findIndex((project) => project.id === id)
+    const target = direction === 'up' ? index - 1 : index + 1
+    if (target < 0 || target >= group.length) return
+
+    const reordered = [...ordered]
+    const firstIndex = reordered.findIndex((project) => project.id === group[index].id)
+    const secondIndex = reordered.findIndex((project) => project.id === group[target].id)
+    ;[reordered[firstIndex], reordered[secondIndex]] = [
+      reordered[secondIndex],
+      reordered[firstIndex]
+    ]
+    const reorder = this.db.transaction(() => {
+      reordered.forEach((project, position) => {
+        this.repository.update(project.id, {
+          sort_order: position,
+          updated_at: nowIso()
+        })
+      })
+    })
+    reorder()
+    this.emitChanged()
   }
 
   exists(id: string): boolean {

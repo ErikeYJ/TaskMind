@@ -51,7 +51,7 @@ describe('pre-migration backup', () => {
     expect(names).toContain('images/demo.png')
 
     const current = new Database(dbPath)
-    current.pragma('user_version = 2')
+    current.pragma('user_version = 3')
     current.close()
     expect(await createPreMigrationBackupIfNeeded(settings, dbPath)).toBeNull()
   })

@@ -290,12 +290,17 @@ export function AddTaskDialog(): React.JSX.Element | null {
       suggestionTimer.current = null
     }
     const initialFilter = useTaskStore.getState().projectFilterId ?? ''
+    const initialProjectId = useTaskStore
+      .getState()
+      .projects.some((project) => project.id === initialFilter)
+      ? initialFilter
+      : ''
     projectTouched.current = Boolean(initialFilter)
     suggestedProjectId.current = null
     setProjectSuggestion(null)
     setForm({
       ...EMPTY_TASK_FORM,
-      projectId: initialFilter
+      projectId: initialProjectId
     })
     setImages([])
     imagesRef.current = []

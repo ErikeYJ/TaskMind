@@ -1,5 +1,6 @@
 import { Plus, Search, Settings2, Sparkles, X } from 'lucide-react'
 import { VIEW_LABELS, VIEW_SUBTITLES } from '@shared/constants'
+import { UNASSIGNED_PROJECT_FILTER } from '@shared/projects'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useTaskStore } from '../../stores/taskStore'
 import { Button } from '../ui/Button'
@@ -10,13 +11,14 @@ export function Header(): React.JSX.Element {
   const openAdd = useTaskStore((state) => state.openAdd)
   const openSettings = useTaskStore((state) => state.openSettings)
   const openSearch = useTaskStore((state) => state.openSearch)
-  const projects = useTaskStore((state) => state.projects)
+  const allProjects = useTaskStore((state) => state.allProjects)
   const projectFilterId = useTaskStore((state) => state.projectFilterId)
   const setProjectFilter = useTaskStore((state) => state.setProjectFilter)
   const settings = useSettingsStore((state) => state.settings)
   const project = projectFilterId
-    ? projects.find((item) => item.id === projectFilterId)
+    ? allProjects.find((item) => item.id === projectFilterId)
     : undefined
+  const unassignedFilter = projectFilterId === UNASSIGNED_PROJECT_FILTER
 
   return (
     <header className="shrink-0 border-b border-[var(--border)] bg-[var(--bg)] px-8 pb-5 pt-6">
@@ -28,14 +30,16 @@ export function Header(): React.JSX.Element {
                 className="h-2.5 w-2.5 shrink-0 rounded-full"
                 style={{ backgroundColor: project.color }}
               />
+            ) : unassignedFilter ? (
+              <span className="h-2.5 w-2.5 shrink-0 rounded-full border-2 border-dashed border-[var(--muted)]" />
             ) : null}
             <h1 className="min-w-0 truncate text-[22px] font-semibold tracking-tight text-[var(--fg)]">
-              {project ? project.name : VIEW_LABELS[view]}
+              {unassignedFilter ? '未关联项目' : project ? project.name : VIEW_LABELS[view]}
             </h1>
             <span className="shrink-0 rounded-full bg-[var(--surface)] px-2 py-0.5 text-[11px] font-medium text-[var(--muted)] ring-1 ring-[var(--border)]">
               {counts[view]}
             </span>
-            {project ? (
+            {project || unassignedFilter ? (
               <button
                 type="button"
                 onClick={() => void setProjectFilter(null)}
@@ -58,7 +62,11 @@ export function Header(): React.JSX.Element {
             ) : null}
           </div>
           <p className="mt-1 text-[12px] text-[var(--muted)]">
-            {project ? `项目内 · ${VIEW_SUBTITLES[view]}` : VIEW_SUBTITLES[view]}
+            {unassignedFilter
+              ? `未关联项目 · ${VIEW_SUBTITLES[view]}`
+              : project
+                ? `项目内 · ${VIEW_SUBTITLES[view]}`
+                : VIEW_SUBTITLES[view]}
           </p>
         </div>
 

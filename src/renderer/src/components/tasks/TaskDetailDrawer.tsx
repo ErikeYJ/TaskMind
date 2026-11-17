@@ -91,7 +91,7 @@ export function TaskDetailDrawer(): React.JSX.Element {
   const open = useTaskStore((state) => state.detailOpen)
   const task = useTaskStore((state) => state.detailTask)
   const closeDetail = useTaskStore((state) => state.closeDetail)
-  const projects = useTaskStore((state) => state.projects)
+  const projects = useTaskStore((state) => state.allProjects)
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<TaskFormValue>(EMPTY_TASK_FORM)
   const [formError, setFormError] = useState<string | null>(null)

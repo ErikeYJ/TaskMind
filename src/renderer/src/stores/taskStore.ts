@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { getTodayString } from '@shared/date'
 import { defaultViewForTask } from '@shared/status'
 import type { Project, Task, TaskCounts, TaskView } from '@shared/types'
+import { UNASSIGNED_PROJECT_FILTER } from '@shared/projects'
 
 const EMPTY_COUNTS: TaskCounts = {
   today: 0,
@@ -24,6 +25,8 @@ interface TaskState {
   settingsOpen: boolean
   searchOpen: boolean
   projects: Project[]
+  archivedProjects: Project[]
+  allProjects: Project[]
   projectsLoading: boolean
   projectsError: string | null
   projectFilterId: string | null
@@ -68,6 +71,8 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   settingsOpen: false,
   searchOpen: false,
   projects: [],
+  archivedProjects: [],
+  allProjects: [],
   projectsLoading: true,
   projectsError: null,
   projectFilterId: null,
@@ -176,12 +181,19 @@ export const useTaskStore = create<TaskState>((set, get) => ({
     const requestId = ++projectListRequestId
     set({ projectsLoading: true, projectsError: null })
     try {
-      const projects = await window.taskmind.projects.list()
+      const allProjects = await window.taskmind.projects.list(true)
       if (requestId !== projectListRequestId) return
+      const projects = allProjects.filter((project) => !project.archivedAt)
+      const archivedProjects = allProjects.filter((project) => Boolean(project.archivedAt))
       const filterId = get().projectFilterId
-      const filterExists = !filterId || projects.some((project) => project.id === filterId)
+      const filterExists =
+        !filterId ||
+        filterId === UNASSIGNED_PROJECT_FILTER ||
+        projects.some((project) => project.id === filterId)
       set({
         projects,
+        archivedProjects,
+        allProjects,
         projectsLoading: false,
         projectsError: null,
         projectFilterId: filterExists ? filterId : null

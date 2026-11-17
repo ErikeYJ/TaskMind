@@ -14,6 +14,7 @@ import type {
   ScreenshotMeta,
   Task,
   TaskAction,
+  BatchTaskResult,
   ProjectSuggestion,
   SuggestProjectInput,
   TaskCounts,
@@ -107,7 +108,7 @@ export class TaskService {
           `SELECT t.project_id AS projectId
            FROM tasks t
            INNER JOIN projects p ON p.id = t.project_id
-           WHERE t.client = ? COLLATE NOCASE AND t.project_id IS NOT NULL
+           WHERE t.client = ? COLLATE NOCASE AND t.project_id IS NOT NULL AND p.archived_at IS NULL
            ORDER BY t.updated_at DESC
            LIMIT 1`
         )
@@ -125,7 +126,7 @@ export class TaskService {
     if (text.length < 2) return null
 
     const projects = this.db
-      .prepare('SELECT id, name FROM projects')
+      .prepare('SELECT id, name FROM projects WHERE archived_at IS NULL')
       .all() as Array<{ id: string; name: string }>
     let best: { id: string; score: number } | null = null
     for (const project of projects) {
@@ -260,19 +261,19 @@ export class TaskService {
     return task
   }
 
-  transition(id: string, action: TaskAction): Task {
-    const existing = this.repository.get(id)
-    if (!existing) throw new Error('任务不存在')
-
+  private transitionFields(
+    existing: Task,
+    action: TaskAction,
+    now: string
+  ): Parameters<TaskRepository['update']>[1] | null {
     const next = nextStatusForAction(
       existing.status,
       action,
       existing.statusBeforeSuspend,
       existing.statusBeforeDone
     )
-    if (!next) throw new Error('当前状态不能执行这个操作')
+    if (!next) return null
 
-    const now = nowIso()
     const fields: Parameters<TaskRepository['update']>[1] = {
       status: next,
       updated_at: now
@@ -297,12 +298,83 @@ export class TaskService {
         fields.suspended_at = null
       }
     }
+    return fields
+  }
 
+  transition(id: string, action: TaskAction): Task {
+    const existing = this.repository.get(id)
+    if (!existing) throw new Error('任务不存在')
+    const fields = this.transitionFields(existing, action, nowIso())
+    if (!fields) throw new Error('当前状态不能执行这个操作')
     this.repository.update(id, fields)
     const task = this.repository.get(id)
     if (!task) throw new Error('任务不存在')
     this.emitChanged()
     return task
+  }
+
+  batchTransition(ids: string[], action: TaskAction): BatchTaskResult {
+    const now = nowIso()
+    let updated = 0
+    let skipped = 0
+    const run = this.db.transaction(() => {
+      for (const id of ids) {
+        const existing = this.repository.get(id)
+        if (!existing) {
+          skipped += 1
+          continue
+        }
+        const fields = this.transitionFields(existing, action, now)
+        if (!fields) {
+          skipped += 1
+          continue
+        }
+        this.repository.update(id, fields)
+        updated += 1
+      }
+    })
+    run()
+    if (updated > 0) this.emitChanged()
+    return { updated, skipped }
+  }
+
+  batchSetProject(ids: string[], projectId: string | null): BatchTaskResult {
+    const normalized = this.normalizeProjectId(projectId)
+    const now = nowIso()
+    let updated = 0
+    let skipped = 0
+    const run = this.db.transaction(() => {
+      for (const id of ids) {
+        if (!this.repository.getRow(id)) {
+          skipped += 1
+          continue
+        }
+        this.repository.update(id, {
+          project_id: normalized,
+          updated_at: now
+        })
+        updated += 1
+      }
+    })
+    run()
+    if (updated > 0) this.emitChanged()
+    return { updated, skipped }
+  }
+
+  batchDeleteSnapshots(ids: string[]): DeletedTaskSnapshot[] {
+    const snapshots: DeletedTaskSnapshot[] = []
+    const run = this.db.transaction(() => {
+      for (const id of ids) {
+        const row = this.repository.getRow(id)
+        if (!row) continue
+        const screenshots = this.repository.listScreenshotsForTask(id)
+        this.repository.delete(id)
+        snapshots.push({ task: row, screenshots })
+      }
+    })
+    run()
+    if (snapshots.length > 0) this.emitChanged()
+    return snapshots
   }
 
   async delete(id: string): Promise<void> {

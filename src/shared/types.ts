@@ -23,6 +23,9 @@ export interface Project {
   id: string
   name: string
   color: string
+  pinned: boolean
+  sortOrder: number
+  archivedAt: string | null
   openTaskCount: number
   totalTaskCount: number
   createdAt: string
@@ -49,6 +52,7 @@ export interface CreateProjectInput {
 export interface UpdateProjectInput {
   name?: string
   color?: string
+  pinned?: boolean
 }
 
 export interface Task {
@@ -173,6 +177,16 @@ export interface DeleteUndoResult {
 export interface UndoResult {
   ok: boolean
   message: string
+}
+
+export interface BatchTaskResult {
+  updated: number
+  skipped: number
+}
+
+export interface BatchDeleteResult {
+  deleted: number
+  undoTokens: string[]
 }
 
 export interface ImportResult {
