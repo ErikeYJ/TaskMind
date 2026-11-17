@@ -5,6 +5,7 @@ import {
   Bell,
   Bot,
   Download,
+  ExternalLink,
   FolderOpen,
   HardDrive,
   Info,
@@ -27,7 +28,7 @@ import {
   type AiProvider,
   type ThemeMode
 } from '@shared/settings'
-import type { AppInfo } from '@shared/types'
+import type { AppInfo, UpdateCheckResult } from '@shared/types'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useTaskStore } from '../../stores/taskStore'
 import { toastError, toastInfo, toastSuccess } from '../../stores/toastStore'
@@ -126,6 +127,8 @@ export function SettingsDialog(): React.JSX.Element | null {
   const [appInfo, setAppInfo] = useState<AppInfo | null>(null)
   const [busyData, setBusyData] = useState<'export' | 'import' | 'auto' | null>(null)
   const [resetPositionBusy, setResetPositionBusy] = useState(false)
+  const [checkingUpdate, setCheckingUpdate] = useState(false)
+  const [updateResult, setUpdateResult] = useState<UpdateCheckResult | null>(null)
 
   useEffect(() => {
     if (!open || !settings) return
@@ -135,6 +138,8 @@ export function SettingsDialog(): React.JSX.Element | null {
     setApiKey('')
     setShowKey(false)
     setTestResult(null)
+    setCheckingUpdate(false)
+    setUpdateResult(null)
   }, [open])
 
   useEffect(() => {
@@ -284,6 +289,31 @@ export function SettingsDialog(): React.JSX.Element | null {
       toastError(getErrorMessage(error, '导入失败'))
     } finally {
       setBusyData(null)
+    }
+  }
+
+  const checkUpdates = async (): Promise<void> => {
+    setCheckingUpdate(true)
+    try {
+      const result = await window.taskmind.updates.check()
+      setUpdateResult(result)
+    } catch (error) {
+      setUpdateResult({
+        ok: false,
+        currentVersion: APP_VERSION,
+        message: getErrorMessage(error, '检查更新失败')
+      })
+    } finally {
+      setCheckingUpdate(false)
+    }
+  }
+
+  const openUpdateRelease = async (): Promise<void> => {
+    try {
+      const result = await window.taskmind.updates.openRelease()
+      if (!result.ok) toastError(result.message)
+    } catch (error) {
+      toastError(getErrorMessage(error, '打开发布页失败'))
     }
   }
 
@@ -732,6 +762,75 @@ export function SettingsDialog(): React.JSX.Element | null {
                 <div className="rounded-lg bg-[var(--surface-soft)] px-3 py-2 font-mono text-[10px] leading-5 text-[var(--muted)]">
                   {settings ? appInfo?.dataDir ?? '' : ''}
                 </div>
+              </Section>
+
+              <Section
+                icon={<RefreshCw className="h-4 w-4" />}
+                title="更新"
+                description="检查 GitHub 上公开的最新版本，不会发送本机任务或设置数据。"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-xs text-[var(--muted)]">
+                    当前版本 <span className="font-mono text-[var(--fg)]">v{APP_VERSION}</span>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    loading={checkingUpdate}
+                    onClick={() => void checkUpdates()}
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    检查更新
+                  </Button>
+                </div>
+                {updateResult ? (
+                  <div
+                    className={cn(
+                      'rounded-xl border px-3 py-2.5 text-[11px] leading-5',
+                      updateResult.ok
+                        ? 'border-[var(--border)] bg-[var(--surface-soft)] text-[var(--muted)]'
+                        : 'border-[var(--danger)]/25 bg-[var(--danger-soft)] text-[var(--danger)]'
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        'font-medium',
+                        updateResult.ok && updateResult.updateAvailable
+                          ? 'text-[var(--primary)]'
+                          : ''
+                      )}
+                    >
+                      {updateResult.message}
+                    </div>
+                    {updateResult.updateAvailable ? (
+                      <div className="mt-2 space-y-2">
+                        <div>
+                          最新版本 v{updateResult.latestVersion}
+                          {updateResult.releaseName
+                            ? ` · ${updateResult.releaseName}`
+                            : ''}
+                        </div>
+                        {updateResult.notes ? (
+                          <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--surface)] p-2 font-sans text-[11px] leading-5 text-[var(--muted)]">
+                            {updateResult.notes}
+                          </pre>
+                        ) : null}
+                        <Button
+                          size="xs"
+                          variant="soft"
+                          onClick={() => void openUpdateRelease()}
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          打开发布页
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : (
+                  <p className="text-[11px] leading-5 text-[var(--muted)]">
+                    点击「检查更新」读取最新 Release；有新版时会显示更新说明和发布页入口。
+                  </p>
+                )}
               </Section>
 
               <Section icon={<Info className="h-4 w-4" />} title="关于">

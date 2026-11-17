@@ -14,6 +14,7 @@ import { ReminderService } from './services/reminderService'
 import { SettingsService } from './services/settingsService'
 import { TaskService } from './services/taskService'
 import { UndoService } from './services/undoService'
+import { UpdateService } from './services/updateService'
 import { TrayService } from './services/trayService'
 import { BallWindowManager } from './windows/ballWindow'
 import { MainWindowManager } from './windows/mainWindow'
@@ -130,6 +131,7 @@ async function bootstrap(): Promise<void> {
   const projects = new ProjectService(db)
   const undoService = new UndoService(tasks, projects)
   undo = undoService
+  const updates = new UpdateService()
   const ai = new AiService(settings, media)
 
   await registerMediaProtocol()
@@ -215,6 +217,7 @@ async function bootstrap(): Promise<void> {
     reminders,
     backup: backupService,
     undo: undoService,
+    updates,
     onQuit: quitApp
   })
 

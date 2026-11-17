@@ -64,6 +64,10 @@ const api: TaskmindApi = {
   undo: {
     restore: (token) => invoke(IPC.undoRestore, token)
   },
+  updates: {
+    check: () => invoke(IPC.updatesCheck),
+    openRelease: () => invoke(IPC.updatesOpenRelease)
+  },
   ai: {
     extract: (imageDataUrls) => invoke(IPC.aiExtract, imageDataUrls),
     testConnection: () => invoke(IPC.aiTestConnection),

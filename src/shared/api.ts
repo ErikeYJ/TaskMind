@@ -22,6 +22,8 @@ import type {
   TaskView,
   SuggestProjectInput,
   UndoResult,
+  UpdateCheckResult,
+  UpdateOpenResult,
   UpdateProjectInput,
   UpdateTaskInput
 } from './types'
@@ -67,6 +69,8 @@ export const IPC = {
   backupRunAuto: 'backup:runAuto',
   backupOpenDir: 'backup:openDir',
   undoRestore: 'undo:restore',
+  updatesCheck: 'updates:check',
+  updatesOpenRelease: 'updates:openRelease',
   appGetInfo: 'app:getInfo',
   appOpenDataDir: 'app:openDataDir',
   appQuit: 'app:quit',
@@ -121,6 +125,10 @@ export interface TaskmindApi {
   }
   undo: {
     restore(token: string): Promise<UndoResult>
+  }
+  updates: {
+    check(): Promise<UpdateCheckResult>
+    openRelease(): Promise<UpdateOpenResult>
   }
   ai: {
     extract(imageDataUrls: string[]): Promise<AiExtractionResult>

@@ -189,6 +189,23 @@ export interface BatchDeleteResult {
   undoTokens: string[]
 }
 
+export interface UpdateCheckResult {
+  ok: boolean
+  message: string
+  currentVersion: string
+  latestVersion?: string
+  updateAvailable?: boolean
+  releaseName?: string
+  releaseUrl?: string
+  notes?: string
+  publishedAt?: string
+}
+
+export interface UpdateOpenResult {
+  ok: boolean
+  message: string
+}
+
 export interface ImportResult {
   ok: boolean
   message: string

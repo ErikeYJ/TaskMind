@@ -66,6 +66,34 @@ async function autoBackupFiles() {
   }
 }
 
+async function waitForAiOutcome(page, dialog, check, label, timeoutMs = 60_000, retries = 1) {
+  let attempts = 0
+  const deadline = Date.now() + timeoutMs * (retries + 1)
+  while (Date.now() < deadline) {
+    if (await page.evaluate(check).catch(() => false)) return
+    const retryButton = dialog.getByRole('button', { name: '重试识别全部' })
+    if (
+      attempts < retries &&
+      (await retryButton.isVisible().catch(() => false))
+    ) {
+      attempts += 1
+      log(`AI ${label} attempt failed; retrying (${attempts}/${retries})`)
+      await retryButton.click().catch(() => {})
+      await page.waitForTimeout(800)
+      continue
+    }
+    await page.waitForTimeout(500)
+  }
+  const screenshot = join(artifacts, `ai-failure-${label}.png`)
+  await page.screenshot({ path: screenshot }).catch(() => {})
+  const status = await dialog
+    .evaluate((element) => (element.textContent || '').slice(0, 1500))
+    .catch(() => '')
+  throw new Error(
+    `AI ${label} did not fill the form. screenshot=${screenshot} status=${status}`
+  )
+}
+
 async function dismissToasts(page) {
   for (let i = 0; i < 5; i += 1) {
     const button = page.getByRole('button', { name: '关闭提示' }).first()
@@ -440,13 +468,14 @@ async function main() {
       log('system clipboard unavailable, using the file picker fallback')
       await aiDialog.locator('input[type="file"]').setInputFiles(imagePath)
     }
-    await mainPage.waitForFunction(
+    await waitForAiOutcome(
+      mainPage,
+      aiDialog,
       () => {
         const input = document.querySelector('#task-title')
         return input instanceof HTMLInputElement && input.value.trim().length > 0
       },
-      undefined,
-      { timeout: 90_000 }
+      'first-image'
     )
 
     log('editing the title before adding a second screenshot')
@@ -456,7 +485,9 @@ async function main() {
 
     log('adding a second screenshot to the same task')
     await aiDialog.locator('input[type="file"]').setInputFiles(secondImagePath)
-    await mainPage.waitForFunction(
+    await waitForAiOutcome(
+      mainPage,
+      aiDialog,
       () => {
         const content = document.querySelector('#task-content')
         const notes = document.querySelector('#task-notes')
@@ -465,8 +496,7 @@ async function main() {
         const notesValue = notes instanceof HTMLTextAreaElement ? notes.value : ''
         return contentValue.includes('2468') || notesValue.includes('2468')
       },
-      undefined,
-      { timeout: 120_000 }
+      'second-image'
     )
     const preservedTitle = await aiDialog.locator('#task-title').inputValue()
     log(`title after re-recognition: ${preservedTitle}`)
@@ -690,6 +720,21 @@ async function main() {
   await settingsDialog.getByText('最近自动备份').waitFor({ timeout: 10_000 })
   await mainPage.waitForTimeout(250)
   await mainPage.screenshot({ path: join(artifacts, '09a-auto-backup.png') })
+
+  if (process.env.E2E_TEST_UPDATES === '1') {
+    log('testing update check')
+    await settingsDialog.getByRole('button', { name: '检查更新' }).click()
+    const updateStatus = settingsDialog
+      .getByText(/当前已是最新版本|发现新版本|检查更新失败|暂时没有可用的版本信息|GitHub 请求受限/)
+      .first()
+    await updateStatus.waitFor({ timeout: 30_000 })
+    const updateText = (await updateStatus.textContent())?.trim() ?? ''
+    log(`update status: ${updateText}`)
+    assert.ok(updateText.length > 0)
+    if (updateText.includes('发现新版本')) {
+      await settingsDialog.getByRole('button', { name: '打开发布页' }).waitFor()
+    }
+  }
 
   const notifyResult = await mainPage.evaluate(() => window.taskmind.notifications.test())
   log(`notification test: ${JSON.stringify(notifyResult)}`)

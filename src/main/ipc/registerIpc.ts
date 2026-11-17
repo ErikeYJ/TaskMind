@@ -36,6 +36,7 @@ import type { ReminderService } from '../services/reminderService'
 import type { SettingsService } from '../services/settingsService'
 import type { TaskService } from '../services/taskService'
 import type { UndoService } from '../services/undoService'
+import type { UpdateService } from '../services/updateService'
 import type { BallWindowManager } from '../windows/ballWindow'
 import type { MainWindowManager } from '../windows/mainWindow'
 
@@ -51,6 +52,7 @@ export interface IpcContext {
   reminders: ReminderService
   backup: BackupService
   undo: UndoService
+  updates: UpdateService
   onQuit: () => void
 }
 
@@ -63,7 +65,7 @@ function handle(
 }
 
 export function registerIpc(context: IpcContext): void {
-  const { tasks, projects, ai, settings, ballWindow, mainWindow, reminders, backup, undo } = context
+  const { tasks, projects, ai, settings, ballWindow, mainWindow, reminders, backup, undo, updates } = context
 
   handle(IPC.tasksList, (_event, view, projectId) => {
     return tasks.list(
@@ -228,6 +230,10 @@ export function registerIpc(context: IpcContext): void {
   handle(IPC.undoRestore, (_event, token) => {
     return undo.undo(undoTokenSchema.parse({ token }).token)
   })
+
+  handle(IPC.updatesCheck, () => updates.check())
+
+  handle(IPC.updatesOpenRelease, () => updates.openRelease())
 
   handle(IPC.appGetInfo, () => ({
     name: APP_NAME,
