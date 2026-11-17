@@ -96,6 +96,17 @@ export const suggestProjectInputSchema = z
 
 export const batchTaskIdsSchema = z.array(z.string().min(1).max(100)).min(1).max(200)
 
+export const completedBetweenSchema = z
+  .object({
+    start: z.string().min(1).max(40),
+    end: z.string().min(1).max(40)
+  })
+  .strict()
+
+export const copyTextSchema = z.object({
+  text: z.string().max(200_000)
+})
+
 export const batchTransitionSchema = z
   .object({
     ids: batchTaskIdsSchema,

@@ -4,6 +4,7 @@ import {
   CalendarDays,
   Check,
   CircleDashed,
+  ClipboardList,
   Inbox,
   Pause,
   Pencil,
@@ -34,6 +35,7 @@ export function Sidebar(): React.JSX.Element {
   const counts = useTaskStore((state) => state.counts)
   const setView = useTaskStore((state) => state.setView)
   const openSettings = useTaskStore((state) => state.openSettings)
+  const openWeeklyReport = useTaskStore((state) => state.openWeeklyReport)
   const projects = useTaskStore((state) => state.projects)
   const archivedProjects = useTaskStore((state) => state.archivedProjects)
   const projectsLoading = useTaskStore((state) => state.projectsLoading)
@@ -83,6 +85,14 @@ export function Sidebar(): React.JSX.Element {
               </button>
             )
           })}
+          <button
+            type="button"
+            onClick={openWeeklyReport}
+            className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-[13px] font-medium text-[var(--muted)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--fg)]"
+          >
+            <ClipboardList className="h-4 w-4" />
+            <span className="flex-1">本周总结</span>
+          </button>
         </div>
 
         <div className="mt-5 border-t border-[var(--border)] pt-4">

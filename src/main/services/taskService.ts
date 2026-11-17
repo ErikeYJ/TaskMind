@@ -94,6 +94,15 @@ export class TaskService {
     return this.repository.counts(getTodayString(), projectId)
   }
 
+  completedBetween(startIso: string, endIso: string): Task[] {
+    const start = new Date(startIso)
+    const end = new Date(endIso)
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start >= end) {
+      throw new Error('时间范围无效')
+    }
+    return this.repository.listCompletedBetween(start.toISOString(), end.toISOString())
+  }
+
   search(query: string): Task[] {
     const trimmed = query.trim()
     if (!trimmed) return []

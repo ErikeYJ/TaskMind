@@ -36,6 +36,7 @@ export const IPC = {
   tasksBatchTransition: 'tasks:batchTransition',
   tasksBatchProject: 'tasks:batchProject',
   tasksBatchDelete: 'tasks:batchDelete',
+  tasksCompletedBetween: 'tasks:completedBetween',
   projectsList: 'projects:list',
   projectsCreate: 'projects:create',
   projectsUpdate: 'projects:update',
@@ -72,6 +73,7 @@ export const IPC = {
   updatesCheck: 'updates:check',
   updatesOpenRelease: 'updates:openRelease',
   appGetInfo: 'app:getInfo',
+  appCopyText: 'app:copyText',
   appOpenDataDir: 'app:openDataDir',
   appQuit: 'app:quit',
   events: {
@@ -112,6 +114,7 @@ export interface TaskmindApi {
     batchTransition(ids: string[], action: TaskAction): Promise<BatchTaskResult>
     batchSetProject(ids: string[], projectId: string | null): Promise<BatchTaskResult>
     batchDelete(ids: string[]): Promise<BatchDeleteResult>
+    completedBetween(startIso: string, endIso: string): Promise<Task[]>
     addScreenshot(taskId: string, input: ScreenshotInput): Promise<ScreenshotMeta>
     deleteScreenshot(id: string): Promise<void>
   }
@@ -162,6 +165,7 @@ export interface TaskmindApi {
   app: {
     getInfo(): Promise<AppInfo>
     openDataDir(): Promise<void>
+    copyText(text: string): Promise<void>
     quit(): Promise<void>
   }
   events: {

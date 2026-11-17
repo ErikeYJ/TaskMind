@@ -24,6 +24,7 @@ interface TaskState {
   addInitialImages: string[]
   settingsOpen: boolean
   searchOpen: boolean
+  weeklyReportOpen: boolean
   projects: Project[]
   archivedProjects: Project[]
   allProjects: Project[]
@@ -47,6 +48,8 @@ interface TaskState {
   closeSettings: () => void
   openSearch: () => void
   closeSearch: () => void
+  openWeeklyReport: () => void
+  closeWeeklyReport: () => void
   openProjectEditor: (
     project?: Project | null,
     onCreated?: (project: Project) => void
@@ -70,6 +73,7 @@ export const useTaskStore = create<TaskState>((set, get) => ({
   addInitialImages: [],
   settingsOpen: false,
   searchOpen: false,
+  weeklyReportOpen: false,
   projects: [],
   archivedProjects: [],
   allProjects: [],
@@ -290,15 +294,26 @@ export const useTaskStore = create<TaskState>((set, get) => ({
       detailTask: null,
       settingsOpen: false,
       searchOpen: false,
+      weeklyReportOpen: false,
       projectEditorOpen: false,
       addOpen: true,
       addInitialImages: images
     }),
   closeAdd: () => set({ addOpen: false, addInitialImages: [] }),
-  openSettings: () => set({ settingsOpen: true, searchOpen: false }),
+  openSettings: () => set({ settingsOpen: true, searchOpen: false, weeklyReportOpen: false }),
   closeSettings: () => set({ settingsOpen: false }),
-  openSearch: () => set({ searchOpen: true }),
+  openSearch: () => set({ searchOpen: true, weeklyReportOpen: false }),
   closeSearch: () => set({ searchOpen: false }),
+  openWeeklyReport: () =>
+    set({
+      weeklyReportOpen: true,
+      searchOpen: false,
+      settingsOpen: false,
+      addOpen: false,
+      projectEditorOpen: false,
+      detailOpen: false
+    }),
+  closeWeeklyReport: () => set({ weeklyReportOpen: false }),
   openProjectEditor: (project = null, onCreated) =>
     set({
       projectEditorOpen: true,

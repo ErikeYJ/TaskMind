@@ -1,4 +1,4 @@
-import { app, ipcMain, shell } from 'electron'
+import { app, clipboard, ipcMain, shell } from 'electron'
 import { IPC } from '../../shared/api'
 import { APP_NAME, APP_VERSION } from '../../shared/constants'
 import {
@@ -9,6 +9,8 @@ import {
   aiExtractInputSchema,
   apiKeySchema,
   ballExpandedSchema,
+  completedBetweenSchema,
+  copyTextSchema,
   createProjectInputSchema,
   projectArchiveInputSchema,
   projectMoveInputSchema,
@@ -151,6 +153,11 @@ export function registerIpc(context: IpcContext): void {
     return undo.deleteTasks(batchTaskIdsSchema.parse(ids))
   })
 
+  handle(IPC.tasksCompletedBetween, (_event, startIso, endIso) => {
+    const parsed = completedBetweenSchema.parse({ start: startIso, end: endIso })
+    return tasks.completedBetween(parsed.start, parsed.end)
+  })
+
   handle(IPC.tasksAddScreenshot, (_event, taskId, input) => {
     const parsed = addScreenshotSchema.parse({
       taskId,
@@ -246,6 +253,10 @@ export function registerIpc(context: IpcContext): void {
 
   handle(IPC.appOpenDataDir, async () => {
     await shell.openPath(settings.getDataDir())
+  })
+
+  handle(IPC.appCopyText, (_event, text) => {
+    clipboard.writeText(copyTextSchema.parse({ text }).text)
   })
 
   handle(IPC.appQuit, () => {

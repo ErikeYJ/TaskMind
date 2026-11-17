@@ -138,6 +138,20 @@ export class TaskRepository {
     return this.withScreenshots(rows)
   }
 
+  listCompletedBetween(startIso: string, endIso: string): Task[] {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM tasks
+         WHERE status = 'done'
+           AND completed_at IS NOT NULL
+           AND completed_at >= ?
+           AND completed_at < ?
+         ORDER BY completed_at ASC`
+      )
+      .all(startIso, endIso) as TaskRow[]
+    return this.withScreenshots(rows)
+  }
+
   search(query: string, limit = 50): Task[] {
     const escaped = query.replace(/[!%_]/g, (match) => `!${match}`)
     const pattern = `%${escaped}%`

@@ -50,6 +50,7 @@ const api: TaskmindApi = {
     batchTransition: (ids, action) => invoke(IPC.tasksBatchTransition, ids, action),
     batchSetProject: (ids, projectId) => invoke(IPC.tasksBatchProject, ids, projectId),
     batchDelete: (ids) => invoke(IPC.tasksBatchDelete, ids),
+    completedBetween: (startIso, endIso) => invoke(IPC.tasksCompletedBetween, startIso, endIso),
     addScreenshot: (taskId, input) => invoke(IPC.tasksAddScreenshot, taskId, input),
     deleteScreenshot: (id) => invoke(IPC.tasksDeleteScreenshot, id)
   },
@@ -100,6 +101,7 @@ const api: TaskmindApi = {
   app: {
     getInfo: () => invoke(IPC.appGetInfo),
     openDataDir: () => invoke(IPC.appOpenDataDir),
+    copyText: (text) => invoke(IPC.appCopyText, text),
     quit: () => invoke(IPC.appQuit)
   },
   events: {

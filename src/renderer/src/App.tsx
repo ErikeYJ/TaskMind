@@ -4,6 +4,7 @@ import { Header } from './components/layout/Header'
 import { Sidebar } from './components/layout/Sidebar'
 import { ProjectDialog } from './components/projects/ProjectDialog'
 import { GlobalSearchDialog } from './components/search/GlobalSearchDialog'
+import { WeeklyReportDialog } from './components/weekly/WeeklyReportDialog'
 import { AddTaskDialog } from './components/tasks/AddTaskDialog'
 import { TaskDetailDrawer } from './components/tasks/TaskDetailDrawer'
 import { TaskList } from './components/tasks/TaskList'
@@ -193,6 +194,7 @@ export default function App(): React.JSX.Element {
       <AddTaskDialog />
       <ProjectDialog />
       <GlobalSearchDialog />
+      <WeeklyReportDialog />
       <TaskDetailDrawer />
       <SettingsDialog />
       <OnboardingDialog />
